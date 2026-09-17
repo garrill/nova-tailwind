@@ -3,8 +3,11 @@
     "name": "Tailwind",
     "organization": "Garrill",
     "description": "Autocompletion for Tailwind CSS v4 utility classes and variants.",
-    "version": "1.0",
+    "version": "1.1",
     "categories": ["completions"],
+
+    "repository": "https://github.com/garrill/nova-tailwind",
+    "bugs": "https://github.com/garrill/nova-tailwind/issues",
 
     "main": "main.js",
 
