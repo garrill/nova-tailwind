@@ -1,0 +1,12 @@
+{
+  "name": "tailwind-nova-extension-generator",
+  "private": true,
+  "description": "Dev-only tooling to regenerate Scripts/data/theme.generated.js from a pinned tailwindcss release. Not part of the shipped Nova extension.",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-theme.mjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "4.3.3"
+  }
+}

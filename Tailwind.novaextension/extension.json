@@ -1,0 +1,37 @@
+{
+    "identifier": "garrill.tailwind",
+    "name": "Tailwind",
+    "organization": "Garrill",
+    "description": "Autocompletion for Tailwind CSS v4 utility classes and variants.",
+    "version": "1.0",
+    "categories": ["completions"],
+
+    "main": "main.js",
+
+    "activationEvents": [
+        "onLanguage:html",
+        "onLanguage:html+erb",
+        "onLanguage:html+eex",
+        "onLanguage:haml",
+        "onLanguage:php",
+        "onLanguage:blade",
+        "onLanguage:twig",
+        "onLanguage:liquid-html",
+        "onLanguage:jade",
+        "onLanguage:pug",
+        "onLanguage:markdown",
+        "onLanguage:vue",
+        "onLanguage:svelte",
+        "onLanguage:astro",
+        "onLanguage:javascript",
+        "onLanguage:typescript",
+        "onLanguage:jsx",
+        "onLanguage:tsx",
+        "onLanguage:css",
+        "onLanguage:sass",
+        "onLanguage:scss"
+    ],
+
+    "entitlements": {
+    }
+}
