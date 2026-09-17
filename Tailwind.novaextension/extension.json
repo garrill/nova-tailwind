@@ -32,6 +32,28 @@
         "onLanguage:scss"
     ],
 
+    "configWorkspace": [
+        {
+            "key": "garrill.tailwind.themeEntryPath",
+            "title": "Custom theme entry CSS file",
+            "description": "Path to the CSS file containing your project's @theme/@utility customizations (e.g. src/app.css). Local @import statements from this file are followed too. Leave blank to use only Tailwind's default theme.",
+            "type": "path",
+            "relative": true,
+            "allowFiles": true,
+            "allowFolders": false,
+            "filetype": ["css"],
+            "default": ""
+        },
+        {
+            "key": "garrill.tailwind.suppressDefaultColors",
+            "title": "Suppress default Tailwind colors",
+            "description": "Only show colors defined in your own theme CSS's @theme block — hides Tailwind's default color palette (red, blue, grey, etc.) from completions entirely. Has no effect unless a custom theme entry CSS file is set above.",
+            "type": "boolean",
+            "default": false
+        }
+    ],
+
     "entitlements": {
+        "filesystem": "readonly"
     }
 }

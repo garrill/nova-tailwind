@@ -13,28 +13,37 @@ Autocompletion for [Tailwind CSS](https://tailwindcss.com) v4 utility classes an
 
 ## Scope
 
-This extension ships completions for Tailwind's **default v4.3 theme only** — it does not read a
-project's own `@theme`/`@utility` customizations in its CSS. If your project has customized its
-theme, its custom class names won't appear in the completion list (though the defaults still
-will).
+Completions are based on Tailwind's **default v4.3 theme** out of the box. Optionally, point the
+extension's "Custom theme entry CSS file" workspace setting at your project's Tailwind entry CSS
+file (e.g. `src/app.css`), and it will also read that file's `@theme`/`@utility` customizations
+(and any local files it `@import`s) — custom spacing/colors/etc. update the hint values shown, and
+custom `@utility` classes appear as completions too. A second workspace setting, "Suppress default
+Tailwind colors", hides Tailwind's default color palette from completions entirely once you've set
+an entry file, so only the colors you've actually defined show up. See CLAUDE.md's "Custom theme
+support" section for exactly what is and isn't supported (a single configured entry file, local
+`@import`s only, static `@utility` classes only).
 
 Completions don't try to complete *inside* arbitrary values (`bg-[#1da1f2]`) or CSS-variable
 shorthands (`p-(--my-spacing)`) — typing those is left alone rather than interfered with.
 
 ## Requirements
 
-None — no external tools, no `tailwind.config.js` scanning, and no filesystem/process
-entitlements are needed at runtime. The class/color/scale data is generated ahead of time from
-the `tailwindcss` npm package (see `gen/`) and shipped with the extension.
+No external tools and no `tailwind.config.js` scanning (Tailwind v4 is CSS-config-first). The
+default class/color/scale data is generated ahead of time from the `tailwindcss` npm package (see
+`Tailwind.novaextension/gen/`) and shipped with the extension. Reading a project's own theme CSS
+(see "Scope" above) requires the `filesystem: readonly` entitlement declared in `extension.json` —
+Nova enforces this even for reads confined to the open workspace — but no process/network
+entitlements are needed.
 
 ## Updating for a new Tailwind release
 
 The default color palette and scale values (spacing base, font sizes, breakpoints, border radii,
-blur sizes, etc.) live in `Scripts/data/theme.generated.js`, generated from the pinned
-`tailwindcss` version in `gen/package.json`. To pick up a new release:
+blur sizes, etc.) live in `Tailwind.novaextension/Scripts/data/theme.generated.js`, generated from
+the pinned `tailwindcss` version in `Tailwind.novaextension/gen/package.json`. To pick up a new
+release:
 
 ```sh
-cd gen
+cd Tailwind.novaextension/gen
 npm install
 npm run generate
 ```

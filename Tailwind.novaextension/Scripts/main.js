@@ -1,6 +1,7 @@
 'use strict'
 
 const { CompletionProvider } = require('./completion-provider.js')
+const { ThemeCoordinator } = require('./theme-coordinator.js')
 
 const SUPPORTED_SYNTAXES = [
   'html', 'html+erb', 'html+eex', 'haml', 'php', 'blade', 'twig', 'liquid-html',
@@ -17,16 +18,27 @@ const SUPPORTED_SYNTAXES = [
 const TRIGGER_CHARS = new Charset('-:/.@')
 
 let disposable = null
+let themeCoordinator = null
 
 exports.activate = function () {
-  disposable = nova.assistants.registerCompletionAssistant(SUPPORTED_SYNTAXES, new CompletionProvider(), {
+  const provider = new CompletionProvider()
+  disposable = nova.assistants.registerCompletionAssistant(SUPPORTED_SYNTAXES, provider, {
     triggerChars: TRIGGER_CHARS,
   })
+
+  // Scans the project's configured @theme/@utility CSS (if any) and keeps `provider`'s
+  // completion dataset in sync with it — see Scripts/theme-coordinator.js.
+  themeCoordinator = new ThemeCoordinator(provider)
+  themeCoordinator.start()
 }
 
 exports.deactivate = function () {
   if (disposable) {
     disposable.dispose()
     disposable = null
+  }
+  if (themeCoordinator) {
+    themeCoordinator.dispose()
+    themeCoordinator = null
   }
 }

@@ -2,7 +2,7 @@
 
 const { parse } = require('./class-parser.js')
 const { hexToColor } = require('./color.js')
-const theme = require('./data/theme.generated.js')
+const defaultTheme = require('./data/theme.generated.js')
 const scales = require('./data/scales.js')
 const { UTILITY_FAMILIES } = require('./data/utilities.js')
 const { VARIANTS } = require('./data/variants.js')
@@ -14,9 +14,9 @@ function trimNumber(n) {
 
 // Tailwind's spacing utilities resolve to `calc(var(--spacing) * N)`, which is technically
 // accurate but useless at a glance in a completion list. Resolve it against the theme's
-// actual `--spacing` base (0.25rem by default) and show the concrete px value instead,
-// e.g. `top-4` → "top: 16px (1rem);".
-function formatSpacingValue(rawStep, negative) {
+// actual `--spacing` base (0.25rem by default, or a project's own custom value — see
+// theme-merge.js) and show the concrete px value instead, e.g. `top-4` → "top: 16px (1rem);".
+function formatSpacingValue(theme, rawStep, negative) {
   const remBase = parseFloat(theme.spacing.base) // theme.spacing.base is e.g. "0.25rem"
   const n = parseFloat(rawStep)
   const sign = negative ? '-' : ''
@@ -64,12 +64,15 @@ function negatedFormula(value) {
 }
 
 /*
-  Builds the flat, kind-agnostic completion dataset once at activation. Each entry:
+  Builds the flat, kind-agnostic completion dataset once at activation (and again whenever
+  theme-coordinator.js rescans a project's custom @theme/@utility CSS). `theme` defaults to the
+  generated Tailwind default theme; a caller can pass a theme-merge.js#mergeTheme() result to
+  reflect a project's own customizations instead. Each entry:
   { label, detail, documentation, category, color, allowNegation, negatedDetail }
   `label` never includes a leading `-` — negation is applied at request time by
   class-parser.js detecting the `-` the user already typed.
 */
-function buildCompletionData() {
+function buildCompletionData(theme = defaultTheme) {
   const data = []
 
   for (const variant of VARIANTS) {
@@ -93,11 +96,14 @@ function buildCompletionData() {
     if (family.kind === 'color') {
       for (const { prefix, props } of family.prefixes) {
         for (const [colorKey, hex] of Object.entries(theme.colors)) {
+          // A custom `--color-*` value that couldn't be resolved to hex (see
+          // theme-merge.js#resolveColorValue) is still shown, just without a swatch.
+          const isResolvedColor = typeof hex === 'string' && hex.startsWith('#')
           data.push({
             label: `${prefix}-${colorKey}`,
             detail: `${props.join(', ')}: ${hex};`,
             category: family.category,
-            color: hex,
+            color: isResolvedColor ? hex : undefined,
           })
         }
         for (const keyword of family.extraKeywords || []) {
@@ -115,13 +121,13 @@ function buildCompletionData() {
       for (const { prefix, props } of family.prefixes) {
         if (family.scale === 'spacing') {
           for (const step of scales.SPACING_STEPS) {
-            const detail = `${props.join(', ')}: ${formatSpacingValue(step)};`
+            const detail = `${props.join(', ')}: ${formatSpacingValue(theme, step)};`
             data.push({
               label: `${prefix}-${step}`,
               detail,
               category: family.category,
               allowNegation: family.negative && step !== '0',
-              negatedDetail: family.negative ? `${props.join(', ')}: ${formatSpacingValue(step, true)};` : undefined,
+              negatedDetail: family.negative ? `${props.join(', ')}: ${formatSpacingValue(theme, step, true)};` : undefined,
             })
           }
         } else if (family.scale === 'fontSize') {
@@ -175,12 +181,29 @@ function buildCompletionData() {
     }
   }
 
+  // Custom `@utility name { ... }` classes discovered in a project's own theme CSS (see
+  // theme-scanner.js/theme-merge.js) — present only when a rescan found some.
+  for (const name of theme.customUtilities || []) {
+    data.push({
+      label: name,
+      detail: `@utility ${name}`,
+      documentation: `Custom utility defined in your project's theme CSS.`,
+      category: 'Custom',
+    })
+  }
+
   return data
 }
 
 exports.CompletionProvider = class CompletionProvider {
   constructor() {
     this._data = buildCompletionData()
+  }
+
+  // Called by theme-coordinator.js after a (re)scan of the project's theme CSS. Passing no
+  // argument reverts to the default theme (e.g. on scan failure or an unset config path).
+  rebuild(theme) {
+    this._data = buildCompletionData(theme)
   }
 
   provideCompletionItems(editor, context) {
