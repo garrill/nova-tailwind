@@ -2,6 +2,7 @@
 
 const { CompletionProvider } = require('./completion-provider.js')
 const { ThemeCoordinator } = require('./theme-coordinator.js')
+const { SidebarDataProvider } = require('./sidebar-provider.js')
 
 const SUPPORTED_SYNTAXES = [
   'html', 'html+erb', 'html+eex', 'haml', 'php', 'blade', 'twig', 'liquid-html',
@@ -19,6 +20,7 @@ const TRIGGER_CHARS = new Charset('-:/.@')
 
 let disposable = null
 let themeCoordinator = null
+let sidebarSubscriptions = []
 
 exports.activate = function () {
   const provider = new CompletionProvider()
@@ -26,9 +28,38 @@ exports.activate = function () {
     triggerChars: TRIGGER_CHARS,
   })
 
-  // Scans the project's configured @theme/@utility CSS (if any) and keeps `provider`'s
-  // completion dataset in sync with it — see Scripts/theme-coordinator.js.
-  themeCoordinator = new ThemeCoordinator(provider)
+  const sidebarProvider = new SidebarDataProvider()
+  const treeView = new TreeView('garrill.tailwind.documentation', { dataProvider: sidebarProvider })
+  sidebarProvider.attachTreeView(treeView)
+  sidebarSubscriptions.push(treeView)
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.filter', () => sidebarProvider.promptFilter())
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.clearFilter', () => sidebarProvider.clearFilter())
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.expandAll', () => sidebarProvider.setForceExpanded(true))
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.collapseAll', () => sidebarProvider.setForceExpanded(false))
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.insertClass', () => sidebarProvider.insertSelectedClass())
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.openDocs', () => sidebarProvider.openSelectedDocs())
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.copyClassName', () => sidebarProvider.copySelectedClassName())
+  )
+  sidebarSubscriptions.push(
+    nova.commands.register('garrill.tailwind.sidebar.copyCss', () => sidebarProvider.copySelectedCss())
+  )
+
+  // Scans the project's configured @theme/@utility CSS (if any) and keeps both the completion
+  // provider and the sidebar's dataset in sync with it — see Scripts/theme-coordinator.js.
+  themeCoordinator = new ThemeCoordinator([provider, sidebarProvider])
   themeCoordinator.start()
 }
 
@@ -41,4 +72,6 @@ exports.deactivate = function () {
     themeCoordinator.dispose()
     themeCoordinator = null
   }
+  for (const subscription of sidebarSubscriptions) subscription.dispose()
+  sidebarSubscriptions = []
 }

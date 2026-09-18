@@ -39,6 +39,7 @@
 exports.UTILITY_FAMILIES = [
   // ---------------------------------------------------------------- Layout
   {
+    id: 'layout-static',
     kind: 'static',
     category: 'Layout',
     items: [
@@ -140,6 +141,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'inset-position',
     kind: 'scale',
     category: 'Layout',
     prefixes: [
@@ -158,6 +160,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'z-index',
     kind: 'numericList',
     category: 'Layout',
     prefixes: [{ prefix: 'z', props: ['z-index'] }],
@@ -165,12 +168,14 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'columns-size',
     kind: 'scale',
     category: 'Layout',
     prefixes: [{ prefix: 'columns', props: ['columns'] }],
     scale: 'containerSizes',
   },
   {
+    id: 'columns-count',
     kind: 'numericList',
     category: 'Layout',
     prefixes: [{ prefix: 'columns', props: ['columns'] }],
@@ -179,6 +184,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Flexbox & Grid
   {
+    id: 'flexbox-grid-static',
     kind: 'static',
     category: 'Flexbox & Grid',
     items: [
@@ -293,18 +299,21 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'flex',
     kind: 'numericList',
     category: 'Flexbox & Grid',
     prefixes: [{ prefix: 'flex', props: ['flex'] }],
     values: ['1'],
   },
   {
+    id: 'flex-grow-shrink',
     kind: 'numericList',
     category: 'Flexbox & Grid',
     prefixes: [{ prefix: 'grow', props: ['flex-grow'] }, { prefix: 'shrink', props: ['flex-shrink'] }],
     values: ['0', '1'],
   },
   {
+    id: 'flex-basis',
     kind: 'scale',
     category: 'Flexbox & Grid',
     prefixes: [{ prefix: 'basis', props: ['flex-basis'] }],
@@ -312,6 +321,7 @@ exports.UTILITY_FAMILIES = [
     extraKeywords: [{ suffix: 'px', value: '1px' }],
   },
   {
+    id: 'grid-placement',
     kind: 'numericList',
     category: 'Flexbox & Grid',
     prefixes: [
@@ -329,6 +339,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'grid-template-count',
     kind: 'numericList',
     category: 'Flexbox & Grid',
     prefixes: [
@@ -338,6 +349,7 @@ exports.UTILITY_FAMILIES = [
     values: Array.from({ length: 12 }, (_, i) => String(i + 1)),
   },
   {
+    id: 'gap',
     kind: 'scale',
     category: 'Flexbox & Grid',
     prefixes: [
@@ -350,6 +362,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Spacing
   {
+    id: 'padding',
     kind: 'scale',
     category: 'Spacing',
     prefixes: [
@@ -367,6 +380,7 @@ exports.UTILITY_FAMILIES = [
     extraKeywords: [{ suffix: 'px', value: '1px' }],
   },
   {
+    id: 'margin',
     kind: 'scale',
     category: 'Spacing',
     prefixes: [
@@ -385,6 +399,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'space-between',
     kind: 'scale',
     category: 'Spacing',
     prefixes: [
@@ -395,6 +410,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'space-between-reverse',
     kind: 'static',
     category: 'Spacing',
     items: [
@@ -405,6 +421,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Sizing
   {
+    id: 'sizing-spacing',
     kind: 'scale',
     category: 'Sizing',
     prefixes: [
@@ -420,6 +437,7 @@ exports.UTILITY_FAMILIES = [
     extraKeywords: [{ suffix: 'px', value: '1px' }, { suffix: 'full', value: '100%' }, { suffix: 'auto', value: 'auto' }],
   },
   {
+    id: 'sizing-container',
     kind: 'scale',
     category: 'Sizing',
     prefixes: [
@@ -430,6 +448,7 @@ exports.UTILITY_FAMILIES = [
     scale: 'containerSizes',
   },
   {
+    id: 'sizing-static',
     kind: 'static',
     category: 'Sizing',
     items: [
@@ -461,6 +480,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'sizing-fraction',
     kind: 'numericList',
     category: 'Sizing',
     prefixes: [{ prefix: 'w', props: ['width'] }, { prefix: 'min-w', props: ['min-width'] }, { prefix: 'max-w', props: ['max-width'] }, { prefix: 'h', props: ['height'] }, { prefix: 'min-h', props: ['min-height'] }, { prefix: 'max-h', props: ['max-height'] }, { prefix: 'size', props: ['width', 'height'] }],
@@ -470,6 +490,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Typography
   {
+    id: 'typography-static',
     kind: 'static',
     category: 'Typography',
     items: [
@@ -539,18 +560,21 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'font-size',
     kind: 'scale',
     category: 'Typography',
     prefixes: [{ prefix: 'text', props: ['font-size', 'line-height'] }],
     scale: 'fontSize',
   },
   {
+    id: 'font-weight',
     kind: 'scale',
     category: 'Typography',
     prefixes: [{ prefix: 'font', props: ['font-weight'] }],
     scale: 'fontWeight',
   },
   {
+    id: 'letter-spacing',
     kind: 'scale',
     category: 'Typography',
     prefixes: [{ prefix: 'tracking', props: ['letter-spacing'] }],
@@ -558,18 +582,21 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'line-height',
     kind: 'scale',
     category: 'Typography',
     prefixes: [{ prefix: 'leading', props: ['line-height'] }],
     scale: 'spacing',
   },
   {
+    id: 'line-clamp',
     kind: 'numericList',
     category: 'Typography',
     prefixes: [{ prefix: 'line-clamp', props: ['-webkit-line-clamp'] }],
     values: ['1', '2', '3', '4', '5', '6'],
   },
   {
+    id: 'text-indent',
     kind: 'numericList',
     category: 'Typography',
     prefixes: [{ prefix: 'indent', props: ['text-indent'] }],
@@ -577,6 +604,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'text-underline-offset',
     kind: 'numericList',
     category: 'Typography',
     prefixes: [{ prefix: 'underline-offset', props: ['text-underline-offset'] }],
@@ -584,12 +612,14 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'text-color',
     kind: 'color',
     category: 'Typography',
     prefixes: [{ prefix: 'text', props: ['color'] }],
     extraKeywords: ['inherit', 'current', 'transparent'],
   },
   {
+    id: 'text-decoration-color',
     kind: 'color',
     category: 'Typography',
     prefixes: [{ prefix: 'decoration', props: ['text-decoration-color'] }],
@@ -598,12 +628,14 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Backgrounds
   {
+    id: 'background-color',
     kind: 'color',
     category: 'Backgrounds',
     prefixes: [{ prefix: 'bg', props: ['background-color'] }],
     extraKeywords: ['inherit', 'current', 'transparent'],
   },
   {
+    id: 'background-static',
     kind: 'static',
     category: 'Backgrounds',
     items: [
@@ -645,6 +677,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'gradient-color-stops',
     kind: 'color',
     category: 'Backgrounds',
     prefixes: [
@@ -656,6 +689,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Borders
   {
+    id: 'border-static',
     kind: 'static',
     category: 'Borders',
     items: [
@@ -699,6 +733,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'border-width',
     kind: 'numericList',
     category: 'Borders',
     prefixes: [
@@ -726,6 +761,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'border-radius',
     kind: 'scale',
     category: 'Borders',
     prefixes: [
@@ -748,6 +784,7 @@ exports.UTILITY_FAMILIES = [
     scale: 'borderRadius',
   },
   {
+    id: 'border-color',
     kind: 'color',
     category: 'Borders',
     prefixes: [
@@ -768,6 +805,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Effects
   {
+    id: 'box-shadow',
     kind: 'numericList',
     category: 'Effects',
     prefixes: [
@@ -777,6 +815,7 @@ exports.UTILITY_FAMILIES = [
     unit: '',
   },
   {
+    id: 'inset-box-shadow',
     kind: 'numericList',
     category: 'Effects',
     prefixes: [{ prefix: 'inset-shadow', props: ['box-shadow (inset)'] }],
@@ -784,6 +823,7 @@ exports.UTILITY_FAMILIES = [
     unit: '',
   },
   {
+    id: 'text-shadow',
     kind: 'numericList',
     category: 'Effects',
     prefixes: [{ prefix: 'text-shadow', props: ['text-shadow'] }],
@@ -791,6 +831,7 @@ exports.UTILITY_FAMILIES = [
     unit: '',
   },
   {
+    id: 'effects-static',
     kind: 'static',
     category: 'Effects',
     items: [
@@ -815,6 +856,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'shadow-color',
     kind: 'color',
     category: 'Effects',
     prefixes: [
@@ -824,6 +866,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'opacity',
     kind: 'numericList',
     category: 'Effects',
     prefixes: [{ prefix: 'opacity', props: ['opacity'] }],
@@ -833,6 +876,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Filters
   {
+    id: 'filter-static',
     kind: 'static',
     category: 'Filters',
     items: [
@@ -849,6 +893,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'blur',
     kind: 'scale',
     category: 'Filters',
     prefixes: [
@@ -858,6 +903,7 @@ exports.UTILITY_FAMILIES = [
     scale: 'blur',
   },
   {
+    id: 'filter-percentage',
     kind: 'numericList',
     category: 'Filters',
     prefixes: [
@@ -879,6 +925,7 @@ exports.UTILITY_FAMILIES = [
     unit: '%',
   },
   {
+    id: 'hue-rotate',
     kind: 'numericList',
     category: 'Filters',
     prefixes: [
@@ -890,12 +937,14 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'drop-shadow',
     kind: 'scale',
     category: 'Filters',
     prefixes: [{ prefix: 'drop-shadow', props: ['filter: drop-shadow(...)'] }],
     scale: 'blur',
   },
   {
+    id: 'drop-shadow-color',
     kind: 'color',
     category: 'Filters',
     prefixes: [{ prefix: 'drop-shadow', props: ['--tw-drop-shadow-color'] }],
@@ -903,6 +952,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Transitions & Animation
   {
+    id: 'transition-animation-static',
     kind: 'static',
     category: 'Transitions & Animation',
     items: [
@@ -927,6 +977,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'transition-duration-delay',
     kind: 'numericList',
     category: 'Transitions & Animation',
     prefixes: [{ prefix: 'duration', props: ['transition-duration'] }, { prefix: 'delay', props: ['transition-delay'] }],
@@ -936,6 +987,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Transforms
   {
+    id: 'transform-static',
     kind: 'static',
     category: 'Transforms',
     items: [
@@ -967,6 +1019,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'scale',
     kind: 'numericList',
     category: 'Transforms',
     prefixes: [
@@ -980,6 +1033,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'rotate-skew',
     kind: 'numericList',
     category: 'Transforms',
     prefixes: [
@@ -996,6 +1050,7 @@ exports.UTILITY_FAMILIES = [
     negative: true,
   },
   {
+    id: 'translate',
     kind: 'scale',
     category: 'Transforms',
     prefixes: [
@@ -1011,6 +1066,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- Interactivity
   {
+    id: 'interactivity-static',
     kind: 'static',
     category: 'Interactivity',
     items: [
@@ -1071,6 +1127,7 @@ exports.UTILITY_FAMILIES = [
     ],
   },
   {
+    id: 'accent-caret-color',
     kind: 'color',
     category: 'Interactivity',
     prefixes: [
@@ -1080,6 +1137,7 @@ exports.UTILITY_FAMILIES = [
     extraKeywords: ['inherit', 'current', 'transparent'],
   },
   {
+    id: 'scroll-margin-padding',
     kind: 'scale',
     category: 'Interactivity',
     prefixes: [
@@ -1104,6 +1162,7 @@ exports.UTILITY_FAMILIES = [
 
   // ---------------------------------------------------------------- SVG
   {
+    id: 'fill-stroke',
     kind: 'color',
     category: 'SVG',
     prefixes: [
@@ -1113,6 +1172,7 @@ exports.UTILITY_FAMILIES = [
     extraKeywords: ['none', 'inherit', 'current', 'transparent'],
   },
   {
+    id: 'stroke-width',
     kind: 'numericList',
     category: 'SVG',
     prefixes: [{ prefix: 'stroke', props: ['stroke-width'] }],

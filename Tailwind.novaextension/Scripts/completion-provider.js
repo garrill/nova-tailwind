@@ -68,9 +68,11 @@ function negatedFormula(value) {
   theme-coordinator.js rescans a project's custom @theme/@utility CSS). `theme` defaults to the
   generated Tailwind default theme; a caller can pass a theme-merge.js#mergeTheme() result to
   reflect a project's own customizations instead. Each entry:
-  { label, detail, documentation, category, color, allowNegation, negatedDetail }
+  { label, detail, documentation, category, color, allowNegation, negatedDetail, familyId }
   `label` never includes a leading `-` — negation is applied at request time by
-  class-parser.js detecting the `-` the user already typed.
+  class-parser.js detecting the `-` the user already typed. `familyId` (absent on variants and
+  custom utilities) mirrors the pushed entry's source UTILITY_FAMILIES object's `id` — used by
+  sidebar-data.js to regroup this same flat data back into families without re-deriving it.
 */
 function buildCompletionData(theme = defaultTheme) {
   const data = []
@@ -88,7 +90,7 @@ function buildCompletionData(theme = defaultTheme) {
   for (const family of UTILITY_FAMILIES) {
     if (family.kind === 'static') {
       for (const entry of family.items) {
-        data.push({ label: entry.label, detail: entry.css, category: family.category })
+        data.push({ label: entry.label, detail: entry.css, category: family.category, familyId: family.id })
       }
       continue
     }
@@ -104,6 +106,7 @@ function buildCompletionData(theme = defaultTheme) {
             detail: `${props.join(', ')}: ${hex};`,
             category: family.category,
             color: isResolvedColor ? hex : undefined,
+            familyId: family.id,
           })
         }
         for (const keyword of family.extraKeywords || []) {
@@ -111,6 +114,7 @@ function buildCompletionData(theme = defaultTheme) {
             label: `${prefix}-${keyword}`,
             detail: `${props.join(', ')}: ${keyword};`,
             category: family.category,
+            familyId: family.id,
           })
         }
       }
@@ -128,6 +132,7 @@ function buildCompletionData(theme = defaultTheme) {
               category: family.category,
               allowNegation: family.negative && step !== '0',
               negatedDetail: family.negative ? `${props.join(', ')}: ${formatSpacingValue(theme, step, true)};` : undefined,
+              familyId: family.id,
             })
           }
         } else if (family.scale === 'fontSize') {
@@ -135,7 +140,7 @@ function buildCompletionData(theme = defaultTheme) {
             const fontSizeRem = parseFloat(fontSizeRemStr)
             const lineHeightRem = resolveLineHeightRem(theme.lineHeight[key], fontSizeRem)
             const detail = formatFontSizeShorthand(fontSizeRem, lineHeightRem)
-            data.push({ label: `${prefix}-${key}`, detail, category: family.category })
+            data.push({ label: `${prefix}-${key}`, detail, category: family.category, familyId: family.id })
           }
         } else {
           const scaleMap = theme[family.scale] || {}
@@ -149,6 +154,7 @@ function buildCompletionData(theme = defaultTheme) {
               category: family.category,
               allowNegation: family.negative,
               negatedDetail: family.negative ? `${props.join(', ')}: ${negatedFormula(value)};` : undefined,
+              familyId: family.id,
             })
           }
         }
@@ -157,6 +163,7 @@ function buildCompletionData(theme = defaultTheme) {
             label: `${prefix}-${keyword.suffix}`,
             detail: `${props.join(', ')}: ${keyword.value};`,
             category: family.category,
+            familyId: family.id,
           })
         }
       }
@@ -174,6 +181,7 @@ function buildCompletionData(theme = defaultTheme) {
             category: family.category,
             allowNegation: family.negative && raw !== '0',
             negatedDetail: family.negative ? `${props.join(', ')}: ${negatedFormula(value)};` : undefined,
+            familyId: family.id,
           })
         }
       }
@@ -194,6 +202,8 @@ function buildCompletionData(theme = defaultTheme) {
 
   return data
 }
+
+exports.buildCompletionData = buildCompletionData
 
 exports.CompletionProvider = class CompletionProvider {
   constructor() {

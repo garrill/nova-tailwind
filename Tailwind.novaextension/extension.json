@@ -3,8 +3,8 @@
     "name": "Tailwind",
     "organization": "Garrill",
     "description": "Autocompletion for Tailwind CSS v4 utility classes and variants.",
-    "version": "1.1",
-    "categories": ["completions"],
+    "version": "1.2",
+    "categories": ["completions", "sidebars"],
 
     "repository": "https://github.com/garrill/nova-tailwind",
     "bugs": "https://github.com/garrill/nova-tailwind/issues",
@@ -57,6 +57,75 @@
     ],
 
     "entitlements": {
-        "filesystem": "readonly"
-    }
+        "filesystem": "readonly",
+        "clipboard": true
+    },
+
+    "commands": {
+        "command-palette": [
+            {
+                "title": "Tailwind: Filter Sidebar",
+                "command": "garrill.tailwind.sidebar.filter"
+            }
+        ]
+    },
+
+    "sidebars": [
+        {
+            "id": "garrill.tailwind.sidebar",
+            "name": "Tailwind",
+            "smallImage": "sidebar-small",
+            "largeImage": "sidebar-large",
+            "sections": [
+                {
+                    "id": "garrill.tailwind.documentation",
+                    "name": "Tailwind Documentation",
+                    "placeholderText": "No matching Tailwind classes.",
+                    "headerCommands": [
+                        {
+                            "title": "Filter",
+                            "image": "filter",
+                            "tooltip": "Filter by class name or CSS property",
+                            "command": "garrill.tailwind.sidebar.filter"
+                        },
+                        {
+                            "title": "Expand",
+                            "image": "__builtin.add",
+                            "tooltip": "Expand All",
+                            "command": "garrill.tailwind.sidebar.expandAll"
+                        },
+                        {
+                            "title": "Collapse",
+                            "image": "__builtin.remove",
+                            "tooltip": "Collapse All",
+                            "command": "garrill.tailwind.sidebar.collapseAll"
+                        }
+                    ],
+                    "contextCommands": [
+                        {
+                            "title": "Open in Tailwind Docs",
+                            "command": "garrill.tailwind.sidebar.openDocs",
+                            "when": "viewItem == 'docs' || viewItem == 'docs+copy'"
+                        },
+                        {
+                            "title": "Copy Class Name",
+                            "command": "garrill.tailwind.sidebar.copyClassName",
+                            "when": "viewItem == 'copy' || viewItem == 'docs+copy'"
+                        },
+                        {
+                            "title": "Copy CSS",
+                            "command": "garrill.tailwind.sidebar.copyCss",
+                            "when": "viewItem == 'copy' || viewItem == 'docs+copy'"
+                        },
+                        {
+                            "title": "Clear Filter",
+                            "image": "__builtin.remove",
+                            "command": "garrill.tailwind.sidebar.clearFilter",
+                            "when": "viewItem == 'filter-status'"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 }
