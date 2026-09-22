@@ -32,11 +32,26 @@ function remToPxRem(remString) {
   return `${trimNumber(rem * 16)}px (${trimNumber(rem)}rem)`
 }
 
+// theme.generated.js's fontSize scale is always rem strings (e.g. "1.125rem"), but a project's
+// own `--text-*` custom font size is free to use any CSS length — px is common. Normalizes to
+// rem so downstream math (which assumes rem, per theme.generated.js's convention) stays correct
+// regardless of the unit actually written in the project's CSS.
+function parseFontSizeRem(rawValue) {
+  const trimmed = rawValue.trim()
+  const value = parseFloat(trimmed)
+  if (trimmed.endsWith('px')) return value / 16
+  return value // rem, or unitless — treated as already being in rem units
+}
+
 // theme.generated.js stores line-height either as a bare unitless multiplier (e.g. "1", used
 // for text-5xl and up) or as Tailwind's own `calc(lineHeightRem / fontSizeRem)` expression —
 // in both cases the numerator (or the multiplier × font size) is the intended absolute
-// line-height in rem, by construction of Tailwind's theme.css.
+// line-height in rem, by construction of Tailwind's theme.css. `lineHeightRaw` can be missing —
+// a project's own `--text-*` custom font size need not define a paired `--text-*--line-height`
+// (Tailwind's `text-*` utility then only sets font-size, no line-height override) — in which
+// case this returns null rather than throwing.
 function resolveLineHeightRem(lineHeightRaw, fontSizeRem) {
+  if (lineHeightRaw === undefined) return null
   const calcMatch = lineHeightRaw.match(/^calc\(([\d.]+)\s*\/\s*[\d.]+\)$/)
   if (calcMatch) return parseFloat(calcMatch[1])
   return parseFloat(lineHeightRaw) * fontSizeRem
@@ -44,8 +59,11 @@ function resolveLineHeightRem(lineHeightRaw, fontSizeRem) {
 
 // `text-lg` → "font: 18px/156%;" — font-size in px, line-height as a percentage of the
 // font-size (the same relationship the CSS `font` shorthand's size/line-height slot uses).
+// `lineHeightRem` may be null (no paired `--text-*--line-height`), in which case only the
+// font-size is shown, matching that the utility itself sets no line-height in that case.
 function formatFontSizeShorthand(fontSizeRem, lineHeightRem) {
   const px = trimNumber(fontSizeRem * 16)
+  if (lineHeightRem === null) return `font-size: ${px}px;`
   const percent = Math.round((lineHeightRem / fontSizeRem) * 100)
   return `font: ${px}px/${percent}%;`
 }
@@ -137,7 +155,7 @@ function buildCompletionData(theme = defaultTheme) {
           }
         } else if (family.scale === 'fontSize') {
           for (const [key, fontSizeRemStr] of Object.entries(theme.fontSize)) {
-            const fontSizeRem = parseFloat(fontSizeRemStr)
+            const fontSizeRem = parseFontSizeRem(fontSizeRemStr)
             const lineHeightRem = resolveLineHeightRem(theme.lineHeight[key], fontSizeRem)
             const detail = formatFontSizeShorthand(fontSizeRem, lineHeightRem)
             data.push({ label: `${prefix}-${key}`, detail, category: family.category, familyId: family.id })
@@ -257,11 +275,33 @@ exports.CompletionProvider = class CompletionProvider {
 
     const matchesAny = (selectorString) => context.selectors.some((s) => s.matches(selectorString))
 
-    if (matchesAny('tag.attribute.value')) return true
-    if (matchesAny('string')) return true
+    // `tag.attribute.value` fires for every HTML attribute (id="…", href="…", …), not just
+    // class-bearing ones — narrow it to the attribute actually being typed, so completions
+    // don't show up in unrelated attributes.
+    if (matchesAny('tag.attribute.value')) return this._isClassAttributeValue(context.line)
+    // `string` fires for any quoted string outside HTML (JS/template literals, Twig, …), where
+    // there's no attribute-name selector to check — fall back to sniffing the text immediately
+    // before the string for a `class`/`className` key, e.g. `options: { class: 'mt-auto|`.
+    if (matchesAny('string')) return this._looksLikeClassKey(context.line)
     if (matchesAny('css') || matchesAny('scss')) return this._isInsideApplyDirective(context.line)
 
     return false
+  }
+
+  // Matches the attribute name immediately before the open quote the cursor is inside, e.g.
+  // `class="` / `className='` / `:class="` / `v-bind:class="` / `ng-class="`, but not
+  // `id="`/`href="`/etc.
+  _isClassAttributeValue(line) {
+    const match = /([a-zA-Z_:][\w:.-]*)\s*=\s*["'][^"']*$/.exec(line)
+    if (!match) return false
+    return /(^|[:.-])class(name)?$/i.test(match[1])
+  }
+
+  // Matches a `class`/`className` object key or attribute-like assignment immediately before
+  // the open quote, e.g. `class: '`, `className: "`, `class = '` — the JS/Twig equivalent of
+  // `_isClassAttributeValue` for contexts with no attribute-name selector to check.
+  _looksLikeClassKey(line) {
+    return /\bclass(name)?\s*[:=]\s*['"`][^'"`]*$/i.test(line)
   }
 
   _isInsideApplyDirective(line) {
