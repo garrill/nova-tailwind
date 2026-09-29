@@ -84,6 +84,14 @@ Tailwind.novaextension/
                                   sidebar)
     oklch-to-srgb.js           – vendored copy of gen/oklch-to-srgb.mjs's OKLCH→sRGB conversion,
                                   used by theme-merge.js at runtime (gen/'s copy is ESM/Node-only)
+    lsp-installer.js           – installs/updates Tailwind's own language server
+                                  (@tailwindcss/language-server) via `npm`, into a private directory
+                                  under nova.extension.globalStoragePath
+    lsp-client.js              – wraps that language server via Nova's LanguageClient, for hover
+                                  previews only (see "Hover preview" below)
+    lsp-shim.js                – plain-Node (NOT Nova runtime) stdio relay between Nova and the
+                                  language server: drops stray non-LSP output, injects settings
+    lsp-debug.js               – `DEBUG` flag + `debug()` logger for the hover-preview wiring
     data/
       theme.generated.js       – GENERATED — do not hand-edit; see gen/generate-theme.mjs
       utilities.js             – hand-maintained: which utility class families exist, each with
@@ -282,3 +290,106 @@ neither `image` nor `color` set falls back to Nova's generic placeholder glyph, 
 every node needs one or the other. Color leaves (e.g. `bg-red-500`) get `color` instead of
 `image` — never both, since Nova prioritizes `image` over `color` when both are set, which would
 otherwise hide the swatch behind the generic class glyph.
+
+### Hover preview
+
+Hovering a Tailwind class/variant shows its resolved CSS. It's on by default and can be turned
+off per project via the `garrill.tailwind.enableHoverPreview` workspace setting; `main.js`
+treats only an explicit `false` as off, so an unset value means on even if Nova doesn't hand
+back the manifest default. This isn't built on a
+Nova "hover assistant" JS API — **Nova has no such API**: `nova.assistants` only exposes
+`registerColorAssistant`/`registerCompletionAssistant`/`registerIssueAssistant`/
+`registerTaskAssistant` (confirmed against Nova's docs and full release history). Hover is
+instead a standard Language Server Protocol (LSP) capability, rendered natively by Nova's
+`LanguageClient` once a real language server is wired up — the same mechanism other Nova
+extensions (e.g. the TypeScript extension) use to get hover, going/definition, etc. for free
+from a real language server rather than reimplementing them in JS.
+
+`lsp-installer.js` installs Tailwind's own official language server,
+`@tailwindcss/language-server` (the same server that powers the real VS Code "Tailwind CSS
+IntelliSense" extension), via `npm install -g --prefix=.` into a private directory under
+`nova.extension.globalStoragePath` — never the user's project. This requires the user to have
+Node.js/npm on `PATH`; there's no standalone-binary distribution of this package the way there
+is for the plain Tailwind CLI. A failed install/start is logged (`console.error`, visible in
+**Extensions → Show Extension Console**) and just leaves hover unavailable — it never breaks
+completions, matching `theme-coordinator.js`'s "log and fall back" convention. The one
+exception is a missing Node.js/npm, which the user can fix: `lsp-installer.js#checkNode()` runs
+`/usr/bin/env node --version` before the install/start (and the install maps npm's launch
+failure the same way) — `/usr/bin/env` exits `127` when the command isn't on `PATH`, which sets
+`err.nodeMissing` — and `main.js` then shows a `NotificationRequest` (at most once per
+activation) with **Download Node.js** / **Turn Off for This Project** actions, the latter
+setting `enableHoverPreview` to `false` for the workspace.
+
+`lsp-client.js` wraps the installed server via `LanguageClient`, mapping each Nova syntax to
+the LSP `languageId` the server expects (e.g. Nova's `jsx`/`tsx` → `javascriptreact`/
+`typescriptreact`; template syntaxes with no confirmed native id fall back to `html`). Nova
+wires a `LanguageClient`'s diagnostics/hover/completions into its UI automatically, with no
+documented way to select a subset of LSP capabilities at the Nova-client level — so completions
+and diagnostics are suppressed one layer down instead, via the server's own `tailwindCSS`
+settings (`suggestions: false`, `codeActions: false`, `colorDecorators: false`,
+`validate: false`), leaving only `hovers: true` active. This is
+deliberate: `completion-provider.js`'s `CompletionProvider` stays the only thing offering
+completions (no duplicate/conflicting popups), and linting is intentionally **not** enabled
+yet — `validate: false` means no diagnostics ship in this pass, even though the server is fully
+capable of them (its lint rule names are literally `invalidTailwindDirective`,
+`invalidConfigPath`, `invalidApply`, `invalidScreen`, matching a separately-considered future
+feature). Enabling that later is a `validate: true` flip plus a second config toggle, not new
+architecture.
+
+`garrill.tailwind.themeEntryPath` (see "Custom theme support" above) is reused as-is to feed
+the server's own `tailwindCSS.experimental.configFile` setting, resolved to an absolute path
+the same way `theme-loader.js` already resolves it for this extension's own theme-merge
+pipeline — one "which CSS file is your theme" setting, not two. Since the settings are handed
+to the shim at spawn time, changing `themeEntryPath` restarts the language client
+(`TailwindLanguageClient#updateConfig()`) rather than trying to push a live config update.
+
+**Nova routes hover to only one language server per language** (found by testing in Nova): with
+Nova's built-in *HTML Language Server* enabled for HTML, Nova never sent `textDocument/hover` to
+this extension's client; disabling it made Tailwind hovers appear. The fix is user-side and
+can't be set by the extension — in **Settings → Languages → (language)**, the ⓘ next to the
+other server opens a **Features** tab where hover can be turned off for it alone. This is
+documented in both READMEs and in the `enableHoverPreview` setting's description.
+
+**The server is never launched directly — `lsp-shim.js` relays between it and Nova.** Run bare
+under Nova, it has two incompatibilities (both found by testing in Nova, then reproduced
+outside it against a real project):
+
+1. **Stray stdout text breaks Nova's LSP framing.** The server `fork()`s a helper
+   (`oxide-helper.js`, which runs the project's own `@tailwindcss/oxide` scanner) that inherits
+   its stdout and prints a plain `Listening for messages...` line into the middle of the LSP
+   stream. VS Code's parser skips it; Nova's loses sync and silently drops every later message —
+   including the server's *dynamic* `client/registerCapability` for `textDocument/hover` (it
+   isn't in the static `initialize` reply, because Nova advertises `dynamicRegistration`), so
+   hovering does nothing and nothing is logged. The shim forwards only well-formed
+   `Content-Length` frames and drops the rest.
+2. **The server gets settings only by pulling `workspace/configuration`** (section
+   `tailwindCSS`, merged over its defaults) — it ignores `initializationOptions` for them, and
+   a `workspace/didChangeConfiguration` just triggers a re-pull. Nova answers that request
+   itself from the extension's own preference keys prefixed with the section name (so `{}`
+   here), and `LanguageClient#onRequest` can't override core LSP methods. The shim rewrites
+   Nova's reply on its way to the server, overlaying the settings `lsp-client.js` passes in
+   the `TAILWIND_LSP_SETTINGS` env var.
+3. **Hover is forced to static registration.** Nova's `initialize` request advertises
+   `hover.dynamicRegistration: true`, and with hover registered dynamically Nova sent no hover
+   requests at all. Unconfirmed as a cause on its own: that test ran while Nova's built-in HTML
+   Language Server still owned hover for HTML (see above), which alone explains it. Kept
+   because static registration is harmless and removes one variable. The shim sets
+   that flag to `false` in Nova's `initialize` request, so the server declares `hoverProvider`
+   statically in its reply instead — it decides static-vs-dynamic per capability.
+4. **Hover replies are converted to MarkupContent.** The server answers with the deprecated
+   MarkedString shape (`{language, value}`), while Nova advertises only `markdown`/`plaintext`
+   MarkupContent; the shim rewrites replies to a fenced ` ```css ` markdown block.
+5. **The server's completion registration is stripped.** Even with `suggestions: false`, the
+   server dynamically registers `textDocument/completion` (it just answers with nothing). Once
+   a language server claims completion for a syntax, Nova stops offering that syntax's own XML
+   completions — found by testing in Nova: with hover preview on, the Twig extension's
+   `{% if %}…{% endif %}` snippets vanished in `.twig` files. The shim filters that entry out
+   of `client/registerCapability` (and drops any static `completionProvider` from the
+   `initialize` reply), so `completion-provider.js` stays the extension's only completion
+   source and other extensions' syntax completions keep working.
+
+The shim is launched as `/usr/bin/env node lsp-shim.js <server-bin> --stdio` and spawns the
+server with the same `node` (`process.execPath`). Because it's plain Node, it can be exercised
+outside Nova by piping hand-framed LSP messages through it — use byte-based (`Buffer`) framing
+in any such test client, since `Content-Length` counts bytes and server messages contain
+multi-byte characters (e.g. `…`).

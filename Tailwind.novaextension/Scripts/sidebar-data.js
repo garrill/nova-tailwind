@@ -159,6 +159,14 @@ function buildSidebarTree(theme) {
   const roots = []
   const categoryNodes = new Map() // category name -> node
 
+  // Family (dropdown) nodes and static-kind (loose class) leaves can be interleaved in
+  // UTILITY_FAMILIES for a given category, but the sidebar always wants dropdowns listed above
+  // loose classes within a category — so each category collects the two kinds separately here
+  // and concatenates family-first once the whole pass is done, rather than pushing straight into
+  // catNode.children in source order.
+  const familyChildrenByCategory = new Map()
+  const staticChildrenByCategory = new Map()
+
   for (const family of UTILITY_FAMILIES) {
     let catNode = categoryNodes.get(family.category)
     if (!catNode) {
@@ -172,16 +180,19 @@ function buildSidebarTree(theme) {
       categoryNodes.set(family.category, catNode)
       nodesById.set(catNode.identifier, catNode)
       roots.push(catNode)
+      familyChildrenByCategory.set(catNode.identifier, [])
+      staticChildrenByCategory.set(catNode.identifier, [])
     }
 
     const entries = entriesByFamily.get(family.id) || []
 
     if (family.kind === 'static') {
+      const staticChildren = staticChildrenByCategory.get(catNode.identifier)
       for (const entry of entries) {
         const leaf = buildClassLeaf(entry, family)
         leaf.parentId = catNode.identifier
         nodesById.set(leaf.identifier, leaf)
-        catNode.children.push(leaf)
+        staticChildren.push(leaf)
       }
       continue
     }
@@ -208,7 +219,14 @@ function buildSidebarTree(theme) {
       docUrl: childDocUrls.size === 1 ? [...childDocUrls][0] : null,
     }
     nodesById.set(familyNode.identifier, familyNode)
-    catNode.children.push(familyNode)
+    familyChildrenByCategory.get(catNode.identifier).push(familyNode)
+  }
+
+  for (const catNode of categoryNodes.values()) {
+    catNode.children = [
+      ...familyChildrenByCategory.get(catNode.identifier),
+      ...staticChildrenByCategory.get(catNode.identifier),
+    ]
   }
 
   const variantsNode = {

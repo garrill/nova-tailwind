@@ -4,7 +4,7 @@
     "organization": "Garrill",
     "description": "Autocompletion for Tailwind CSS v4 utility classes and variants.",
     "version": "1.2",
-    "categories": ["completions", "sidebars"],
+    "categories": ["completions", "sidebars", "languages"],
 
     "repository": "https://github.com/garrill/nova-tailwind",
     "bugs": "https://github.com/garrill/nova-tailwind/issues",
@@ -53,12 +53,21 @@
             "description": "Only show colors defined in your own theme CSS's @theme block — hides Tailwind's default color palette (red, blue, grey, etc.) from completions entirely. Has no effect unless a custom theme entry CSS file is set above.",
             "type": "boolean",
             "default": false
+        },
+        {
+            "key": "garrill.tailwind.enableHoverPreview",
+            "title": "Enable hover preview",
+            "description": "Show the resolved CSS for a Tailwind class when hovering over it. On by default; turn it off here for any project that doesn't need it. Requires Node.js and npm — the first time it runs, the extension installs Tailwind's own language server (@tailwindcss/language-server) via npm, which needs network access. Nova only lets one language server provide hovers per language: if Nova's built-in HTML/CSS Language Server has hover enabled, Tailwind's hovers won't show. To fix it, go to Nova → Settings → Languages → (language), click the ⓘ next to that server, and turn off hover in its Features tab.",
+            "type": "boolean",
+            "default": true
         }
     ],
 
     "entitlements": {
-        "filesystem": "readonly",
-        "clipboard": true
+        "filesystem": "readwrite",
+        "clipboard": true,
+        "process": true,
+        "requests": true
     },
 
     "commands": {
