@@ -2,15 +2,16 @@
 
 /*
   Wraps Tailwind's own language server (@tailwindcss/language-server, installed by
-  lsp-installer.js) via Nova's LanguageClient, for hover previews only.
+  lsp-installer.js) via Nova's LanguageClient, for hover previews and linting (diagnostics plus
+  their quick-fix code actions), each toggled by its own workspace setting.
 
   Diagnostics/hover/completions are all wired into Nova's UI automatically once a
   LanguageClient starts — Nova has no documented way to select a subset of LSP
-  capabilities. Completions and diagnostics are suppressed one layer down instead, via the
-  server's own `tailwindCSS` settings (`suggestions`/`codeActions`/`colorDecorators`/
-  `validate: false`), so this extension's existing CompletionProvider (completion-
-  provider.js) stays the only thing offering completions. Re-enabling linting later (see
-  CLAUDE.md/plan) is then just flipping `validate` to `true` — no new wiring needed.
+  capabilities. Unwanted features are suppressed one layer down instead, via the server's own
+  `tailwindCSS` settings (`suggestions: false` always, so this extension's CompletionProvider
+  stays the only thing offering completions; `hovers`/`validate`/`codeActions` per the
+  `features` passed to start()), and lsp-shim.js strips the matching capability claims so a
+  disabled feature doesn't take hover/code actions away from another language server.
 
   The server isn't launched directly: lsp-shim.js sits in between, because run bare under
   Nova it (a) prints stray text into the LSP stream, which makes Nova drop every later
@@ -68,16 +69,21 @@ exports.TailwindLanguageClient = class TailwindLanguageClient {
     this._client = null
     this._stopping = null // Promise that resolves once the previous client has fully shut down
     this._pendingStart = false
+    this._features = { hovers: true, lint: false }
+    this._startedWithSettings = null // JSON of the tailwindCSS settings the running client got
   }
 
   get running() {
     return !!this._client && this._client.running
   }
 
-  start() {
+  // `features` is `{ hovers, lint }`; omitted, the last-given features are reused. If a client
+  // is already running with different settings, it's restarted with the new ones.
+  start(features) {
+    if (features) this._features = features
     if (this._client) {
-      debug('start(): client already exists, skipping')
-      return // already running (or starting) — LanguageClient#start() is a no-op anyway, but avoid rebuilding options for nothing
+      this.updateConfig()
+      return
     }
 
     // LanguageClient#stop() is async, and Nova rejects a new client with the same identifier
@@ -97,18 +103,8 @@ exports.TailwindLanguageClient = class TailwindLanguageClient {
     }
 
     const configFile = resolveConfigFilePath()
-    this._startedWithConfigFile = configFile
-
-    // Delivered to the server by lsp-shim.js via its `workspace/configuration` replies — the
-    // server ignores `initializationOptions` for these.
-    const tailwindSettings = {
-      hovers: true,
-      suggestions: false,
-      codeActions: false,
-      colorDecorators: false,
-      validate: false, // linting is deferred — see CLAUDE.md's "Hover preview" section
-      ...(configFile ? { experimental: { configFile } } : {}),
-    }
+    const tailwindSettings = this._settings()
+    this._startedWithSettings = JSON.stringify(tailwindSettings)
 
     const shimPath = nova.path.join(nova.extension.path, 'Scripts', 'lsp-shim.js')
     const serverOptions = {
@@ -180,14 +176,28 @@ exports.TailwindLanguageClient = class TailwindLanguageClient {
     nova.subscriptions.remove(client)
   }
 
-  // Called when garrill.tailwind.themeEntryPath changes. The settings are handed to the shim
-  // at spawn time, so reflecting a new/changed/cleared entry file means restarting the client —
-  // same approach nova-typescript-lsp uses for its own config changes. No-ops if the resolved
-  // path hasn't actually changed (avoids restarting on unrelated workspace churn).
+  // Delivered to the server by lsp-shim.js via its `workspace/configuration` replies — the
+  // server ignores `initializationOptions` for these.
+  _settings() {
+    const configFile = resolveConfigFilePath()
+    return {
+      hovers: this._features.hovers,
+      suggestions: false,
+      codeActions: this._features.lint,
+      colorDecorators: false,
+      validate: this._features.lint,
+      ...(configFile ? { experimental: { configFile } } : {}),
+    }
+  }
+
+  // Called when garrill.tailwind.themeEntryPath changes, or start() is called with different
+  // features. The settings are handed to the shim at spawn time, so reflecting them means
+  // restarting the client — same approach nova-typescript-lsp uses for its own config changes.
+  // No-ops if the settings haven't actually changed (avoids restarting on unrelated churn).
   updateConfig() {
     if (!this._client) return
-    if (resolveConfigFilePath() === this._startedWithConfigFile) return
-    debug('updateConfig(): theme entry path changed, restarting client')
+    if (JSON.stringify(this._settings()) === this._startedWithSettings) return
+    debug('updateConfig(): settings changed, restarting client')
     this.stop()
     this.start()
   }

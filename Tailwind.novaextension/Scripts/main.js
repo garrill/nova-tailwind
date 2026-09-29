@@ -22,6 +22,7 @@ const SUPPORTED_SYNTAXES = [
 const TRIGGER_CHARS = new Charset('-:/.@')
 
 const ENABLE_HOVER_PREVIEW_KEY = 'garrill.tailwind.enableHoverPreview'
+const ENABLE_LINTING_KEY = 'garrill.tailwind.enableLinting'
 const THEME_ENTRY_PATH_KEY = 'garrill.tailwind.themeEntryPath'
 const NODE_MISSING_NOTIFICATION_ID = 'garrill.tailwind.nodeMissing'
 
@@ -29,9 +30,9 @@ let disposable = null
 let themeCoordinator = null
 let sidebarSubscriptions = []
 let langClient = null
-let hoverEnabled = false
+let serverFeatures = { hovers: false, lint: false }
 let nodeMissingNotified = false
-let hoverConfigSubscriptions = []
+let serverConfigSubscriptions = []
 
 exports.activate = function () {
   const provider = new CompletionProvider()
@@ -73,44 +74,56 @@ exports.activate = function () {
   themeCoordinator = new ThemeCoordinator([provider, sidebarProvider])
   themeCoordinator.start()
 
-  // Hover preview: installs/runs Tailwind's own language server on demand, on by default and
-  // turned off per project via a workspace setting — see Scripts/lsp-client.js.
-  // The setting is declared in configWorkspace (Project → Project Settings), so a value set in
-  // the global Extensions preferences is never read — log both to make that mismatch visible.
+  // Hover preview and linting: installs/runs Tailwind's own language server on demand while
+  // either is on — both on by default, turned off per project via workspace settings — see
+  // Scripts/lsp-client.js.
+  // The settings are declared in configWorkspace (Project → Project Settings), so a value set
+  // in the global Extensions preferences is never read — log both to make that mismatch visible.
   debug(`activate(): nova version=${nova.versionString}, workspace=${nova.workspace.path}`)
-  debug(`activate(): ${ENABLE_HOVER_PREVIEW_KEY} project=${nova.workspace.config.get(ENABLE_HOVER_PREVIEW_KEY, 'boolean')}` +
-    ` global=${nova.config.get(ENABLE_HOVER_PREVIEW_KEY, 'boolean')}`)
+  for (const key of [ENABLE_HOVER_PREVIEW_KEY, ENABLE_LINTING_KEY]) {
+    debug(`activate(): ${key} project=${nova.workspace.config.get(key, 'boolean')}` +
+      ` global=${nova.config.get(key, 'boolean')}`)
+  }
 
   langClient = new TailwindLanguageClient(SUPPORTED_SYNTAXES)
-  hoverConfigSubscriptions.push(
-    nova.workspace.config.observe(ENABLE_HOVER_PREVIEW_KEY, (enabled) => {
-      debug(`${ENABLE_HOVER_PREVIEW_KEY} observed as ${enabled}`)
-      // Only an explicit `false` turns it off — an unset value (null) means the default, on.
-      setHoverPreviewEnabled(enabled !== false)
-    }, this)
-  )
-  hoverConfigSubscriptions.push(
+  for (const key of [ENABLE_HOVER_PREVIEW_KEY, ENABLE_LINTING_KEY]) {
+    serverConfigSubscriptions.push(
+      nova.workspace.config.observe(key, (value) => {
+        debug(`${key} observed as ${value}`)
+        syncLanguageServer()
+      }, this)
+    )
+  }
+  serverConfigSubscriptions.push(
     nova.workspace.config.observe(THEME_ENTRY_PATH_KEY, () => langClient.updateConfig(), this)
   )
 }
 
-// Installs (if needed) and starts/stops the hover-preview language client to match the
-// current setting. Never throws: a failed install/start just logs and leaves hover
+// Only an explicit `false` turns a feature off — an unset value (null) means the default, on.
+function readServerFeatures() {
+  return {
+    hovers: nova.workspace.config.get(ENABLE_HOVER_PREVIEW_KEY, 'boolean') !== false,
+    lint: nova.workspace.config.get(ENABLE_LINTING_KEY, 'boolean') !== false,
+  }
+}
+
+// Installs (if needed) and starts/restarts/stops the language client to match the current
+// settings. Never throws: a failed install/start just logs and leaves hover/linting
 // unavailable, matching theme-coordinator.js's "log and fall back" convention — except a
 // missing Node.js/npm, which the user can actually fix, so that also shows a notification.
-function setHoverPreviewEnabled(enabled) {
-  hoverEnabled = enabled
-  if (!enabled) {
+function syncLanguageServer() {
+  serverFeatures = readServerFeatures()
+  if (!serverFeatures.hovers && !serverFeatures.lint) {
     nova.notifications.cancel(NODE_MISSING_NOTIFICATION_ID)
     langClient.stop()
     return
   }
 
-  // Each step is async: the setting may have been turned off, or the extension deactivated,
-  // before it finished.
-  const stillWanted = () => !!langClient && hoverEnabled
+  // Each step is async: both settings may have been turned off, or the extension
+  // deactivated, before it finished.
+  const stillWanted = () => !!langClient && (serverFeatures.hovers || serverFeatures.lint)
   const onError = (err) => {
-    console.error('[Tailwind] hover preview unavailable:', err.message)
+    console.error('[Tailwind] hover preview/linting unavailable:', err.message)
     if (err.nodeMissing && stillWanted()) showNodeMissingNotification()
   }
 
@@ -120,11 +133,12 @@ function setHoverPreviewEnabled(enabled) {
     lspInstaller.installOrUpdate(false, (err) => {
       if (err) return onError(err)
       if (!stillWanted()) {
-        debug('install finished but hover preview is no longer enabled, not starting client')
+        debug('install finished but hover preview/linting is no longer enabled, not starting client')
         return
       }
-      debug('install check passed, starting client')
-      langClient.start()
+      debug('install check passed, starting client with', JSON.stringify(serverFeatures))
+      // Restarts an already-running client if the features changed.
+      langClient.start(serverFeatures)
     })
   })
 }
@@ -135,12 +149,14 @@ function showNodeMissingNotification() {
   nodeMissingNotified = true
 
   const request = new NotificationRequest(NODE_MISSING_NOTIFICATION_ID)
-  request.title = 'Tailwind hover preview needs Node.js'
-  request.body = 'Hovering a class to see its CSS uses Tailwind\'s language server, which requires Node.js. Completions and the sidebar work without it.'
+  request.title = 'Tailwind hover preview and linting need Node.js'
+  request.body = 'Hover previews and linting use Tailwind\'s language server, which requires Node.js. Completions and the sidebar work without it.'
   request.actions = ['Turn Off for This Project', 'Dismiss']
 
   nova.notifications.add(request).then((response) => {
-    if (response.actionIdx === 0) nova.workspace.config.set(ENABLE_HOVER_PREVIEW_KEY, false)
+    if (response.actionIdx !== 0) return
+    nova.workspace.config.set(ENABLE_HOVER_PREVIEW_KEY, false)
+    nova.workspace.config.set(ENABLE_LINTING_KEY, false)
   }, (err) => debug(`node-missing notification closed without an action: ${err}`))
 }
 
@@ -155,12 +171,12 @@ exports.deactivate = function () {
   }
   for (const subscription of sidebarSubscriptions) subscription.dispose()
   sidebarSubscriptions = []
-  for (const subscription of hoverConfigSubscriptions) subscription.dispose()
-  hoverConfigSubscriptions = []
+  for (const subscription of serverConfigSubscriptions) subscription.dispose()
+  serverConfigSubscriptions = []
   if (langClient) {
     langClient.stop()
     langClient = null
   }
-  hoverEnabled = false
+  serverFeatures = { hovers: false, lint: false }
   nova.notifications.cancel(NODE_MISSING_NOTIFICATION_ID)
 }

@@ -60,6 +60,13 @@
             "description": "Show the resolved CSS for a Tailwind class when hovering over it. On by default; turn it off here for any project that doesn't need it. Requires Node.js and npm — the first time it runs, the extension installs Tailwind's own language server (@tailwindcss/language-server) via npm, which needs network access. Nova only lets one language server provide hovers per language: if Nova's built-in HTML/CSS Language Server has hover enabled, Tailwind's hovers won't show. To fix it, go to Nova → Settings → Languages → (language), click the ⓘ next to that server, and turn off hover in its Features tab.",
             "type": "boolean",
             "default": true
+        },
+        {
+            "key": "garrill.tailwind.enableLinting",
+            "title": "Enable linting",
+            "description": "Flag Tailwind problems in the Issues sidebar and editor, with quick fixes where available: conflicting classes (e.g. p-2 p-4), invalid @apply/variants/screens/directives, non-standard variant order, and classes with a simpler canonical form. On by default; turn it off here for any project that doesn't need it. Uses the same language server as hover preview, so it also requires Node.js and npm.",
+            "type": "boolean",
+            "default": true
         }
     ],
 

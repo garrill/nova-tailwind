@@ -18,12 +18,14 @@
      override core LSP methods, so the shim rewrites Nova's reply on its way to the server,
      overlaying the settings passed in the TAILWIND_LSP_SETTINGS env var (JSON).
 
-  3. The server registers `textDocument/completion` (dynamically, via client/registerCapability)
-     even with `suggestions: false`, which only makes it answer with nothing. Once a language
-     server claims completion for a syntax, Nova stops offering that syntax's own XML
-     completions (e.g. the Twig extension's `{% if %}` snippets), so the shim removes the
-     completion registration (and any static `completionProvider`) before Nova sees it —
-     completions come from completion-provider.js only.
+  3. The server claims capabilities even when its settings turn them off — e.g. it registers
+     `textDocument/completion` (dynamically, via client/registerCapability) with
+     `suggestions: false`, and declares `hoverProvider`/`codeActionProvider` statically
+     regardless of `hovers`/`codeActions`; it then just answers with nothing. Once a language
+     server claims a feature for a syntax, Nova stops using other sources for it (e.g. the Twig
+     extension's `{% if %}` completion snippets vanished; Nova routes hover to one server per
+     language). So the shim removes each disabled feature's claim, static or dynamic, before
+     Nova sees it. Completion is always removed — completions come from completion-provider.js.
 */
 
 const { spawn } = require('child_process')
@@ -88,6 +90,12 @@ const pendingConfigRequests = new Map()
 // ids of client→server `textDocument/hover` requests awaiting the server's reply
 const pendingHoverRequests = new Set()
 
+// Features turned off in the settings, whose capability claims are hidden from Nova (see 3.
+// above): LSP method → the matching static `ServerCapabilities` key.
+const DISABLED_FEATURES = new Map([['textDocument/completion', 'completionProvider']])
+if (settings.hovers === false) DISABLED_FEATURES.set('textDocument/hover', 'hoverProvider')
+if (settings.codeActions === false) DISABLED_FEATURES.set('textDocument/codeAction', 'codeActionProvider')
+
 // The server replies with the deprecated MarkedString shape (`{language, value}`, or an array
 // of those/strings); Nova advertises only MarkupContent (`markdown`/`plaintext`), so convert.
 function toMarkupContent(contents) {
@@ -114,17 +122,20 @@ server.stdout.on('data', createFrameReader(
       } else if (message.method === 'workspace/configuration' && message.id !== undefined) {
         pendingConfigRequests.set(message.id, message.params.items || [])
       } else if (message.result && message.result.capabilities) {
-        if (message.result.capabilities.completionProvider) {
-          delete message.result.capabilities.completionProvider
+        const capabilities = message.result.capabilities
+        for (const key of DISABLED_FEATURES.values()) {
+          if (!(key in capabilities)) continue
+          delete capabilities[key]
           out = Buffer.from(JSON.stringify(message), 'utf8')
+          log(`removed static ${key}`)
         }
-        log(`initialize reply capabilities: ${Object.keys(message.result.capabilities).join(', ')}`)
+        log(`initialize reply capabilities: ${Object.keys(capabilities).join(', ')}`)
       } else if (message.method === 'client/registerCapability') {
         const registrations = message.params.registrations
-        message.params.registrations = registrations.filter((r) => r.method !== 'textDocument/completion')
+        message.params.registrations = registrations.filter((r) => !DISABLED_FEATURES.has(r.method))
         if (message.params.registrations.length !== registrations.length) {
           out = Buffer.from(JSON.stringify(message), 'utf8')
-          log('removed textDocument/completion registration')
+          log('removed registration(s) for disabled features')
         }
         log(`server registering: ${message.params.registrations.map((r) => r.method).join(', ') || '(nothing)'}`)
       }
