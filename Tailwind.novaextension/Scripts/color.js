@@ -20,6 +20,7 @@ function hexToRgb01(hex) {
   return [r, g, b]
 }
 
-exports.hexToColor = function hexToColor(hex) {
-  return new Color('rgb', hexToRgb01(hex))
+// `alpha` (0–1) is used by color-assistant.js for opacity modifiers like `bg-red-500/50`.
+exports.hexToColor = function hexToColor(hex, alpha = 1) {
+  return new Color('rgb', [...hexToRgb01(hex), alpha])
 }

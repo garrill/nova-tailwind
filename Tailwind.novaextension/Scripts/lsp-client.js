@@ -145,6 +145,14 @@ exports.TailwindLanguageClient = class TailwindLanguageClient {
     }
   }
 
+  // Sends a (custom) request to the server, e.g. `@/tailwindCSS/sortSelection` for main.js's
+  // Sort Classes command. Rejects if the server isn't running — it only runs while hover
+  // preview or linting is enabled.
+  sendRequest(method, params) {
+    if (!this.running) return Promise.reject(new Error('the Tailwind language server is not running'))
+    return this._client.sendRequest(method, params)
+  }
+
   stop() {
     this._pendingStart = false
     if (!this._client) return

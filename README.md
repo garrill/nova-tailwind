@@ -12,6 +12,8 @@ Autocompletion for [Tailwind CSS](https://tailwindcss.com) v4 utility classes an
 - Custom theme overrides by importing `@theme`/`@utility` from your CSS file.
 - Hover preview: hover a class to see its full CSS (see below).
 - Linting: conflicting classes, invalid `@apply`/variants/directives and more flagged as issues, with quick fixes (see below).
+- Sort classes into Tailwind's recommended order (see below).
+- Color swatches next to color classes in the editor, e.g. `bg-red-500`, `text-sky-600/50`.
 
 ## Requirements
 
@@ -37,6 +39,16 @@ Tailwind problems show up in Nova's **Issues** sidebar and are underlined in the
 - Classes your project has blocklisted.
 
 It uses the same language server as hover preview, so it has the same Node.js/npm requirement.
+
+## Sorting classes
+
+Run **Tailwind: Sort Classes** from the Command Palette, or **Editor → Sort Tailwind Classes**, to put classes in Tailwind's recommended order (the same order Prettier's Tailwind plugin uses). With the cursor inside a `class="…"` attribute or an `@apply` statement it sorts that list; with a selection it sorts the selected classes; multiple cursors and selections work too. To sort every class list in the file at once, run **Tailwind: Sort All Classes in Document** (or **Editor → Sort All Tailwind Classes in Document**); it sorts all `class`/`className` attribute values and `@apply` statements in one step, which a single undo reverts. Any list the sort reorders also has its whitespace tidied: double spaces collapsed, and spaces at the start and end removed. Template code (`{{ }}`, `${ }`, `<?php`, …) is left where it is: only the classes before it are sorted, so `px-6 flex {{gridCols}}` becomes `flex px-6 {{gridCols}}`, and classes inside a `{% if %}` never move.
+
+It uses the same language server as hover preview and linting, so one of those needs to be on (and Node.js installed).
+
+## Color swatches
+
+On by default. Turn them off for a project in **Project → Project Settings → Tailwind → Show color swatches**. Swatches use your project's own colors when a theme entry file is set, and don't need Node.js.
 
 ## Updating for a new Tailwind release (untested)
 

@@ -1,7 +1,7 @@
 'use strict'
 
-// Verbose hover-preview logging (Extensions → Show Extension Console). Flip to false once the
-// language-server wiring is confirmed working.
+// Verbose hover-preview logging (Extensions → Show Extension Console). Set to true when
+// debugging the language-server wiring; keep false in releases.
 const DEBUG = false
 
 exports.DEBUG = DEBUG

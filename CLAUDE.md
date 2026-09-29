@@ -72,7 +72,12 @@ Tailwind.novaextension/
                                   (duck-types CompletionProvider#rebuild so ThemeCoordinator can
                                   call both), double-click-to-insert wiring
     insert-class-command.js    – inserts a class/variant token at the active editor's cursor
-    color.js                   – hex → Nova Color() for completion-item/sidebar-leaf swatches
+    color.js                   – hex (+ alpha) → Nova Color() for completion-item/sidebar-leaf/
+                                  editor swatches
+    color-assistant.js         – Nova color assistant: in-editor swatches beside color classes
+                                  (see "Color swatches" below)
+    class-sort.js              – pure helpers for the Sort Classes command: finds the class list
+                                  around the cursor, skips lists containing template code
     theme-loader.js            – reads a project's configured theme entry CSS file plus any
                                   local `@import`s it follows (nova.fs/nova.path)
     theme-scanner.js           – dependency-free CSS tokenizer: extracts `@theme` declarations
@@ -92,6 +97,8 @@ Tailwind.novaextension/
     lsp-shim.js                – plain-Node (NOT Nova runtime) stdio relay between Nova and the
                                   language server: drops stray non-LSP output, injects settings
     lsp-debug.js               – `DEBUG` flag + `debug()` logger for the hover-preview wiring
+                                  (the Sort Classes command, main.js, also uses the server — see
+                                  "Class sorting" below)
     data/
       theme.generated.js       – GENERATED — do not hand-edit; see gen/generate-theme.mjs
       utilities.js             – hand-maintained: which utility class families exist, each with
@@ -401,3 +408,61 @@ server with the same `node` (`process.execPath`). Because it's plain Node, it ca
 outside Nova by piping hand-framed LSP messages through it — use byte-based (`Buffer`) framing
 in any such test client, since `Content-Length` counts bytes and server messages contain
 multi-byte characters (e.g. `…`).
+
+### Class sorting
+
+**Tailwind: Sort Classes** (Command Palette, and **Editor → Sort Tailwind Classes**) sorts class
+lists into Tailwind's recommended order — the same order `prettier-plugin-tailwindcss` uses — by
+sending the language server its custom `@/tailwindCSS/sortSelection` request (`{ uri,
+classLists: string[] }` → `{ classLists }`, or `{ error: 'no-project' | 'unknown' }`), via
+`TailwindLanguageClient#sendRequest()` (Nova's `LanguageClient#sendRequest` supports custom
+methods; the shim passes them through untouched). The server keeps each list's whitespace and
+puts classes it doesn't know first, so there's no reordering logic in this extension.
+`main.js#sortClasses()` sorts each non-empty selection as one list; an empty selection uses
+`class-sort.js#findClassListAt()` to find the class attribute/`class:` key value or `@apply`
+statement around the cursor. **Tailwind: Sort All Classes in Document**
+(`main.js#sortAllClasses()`) uses `class-sort.js#findClassLists()` — which `findClassListAt()`
+is built on — over the whole document instead; values may span lines (the server keeps each line
+break where it was, between whichever classes now fall either side of it), and unterminated
+values are skipped rather than run to the end of the document. Both commands share
+`main.js#sortRanges()`: one request for all lists, and only lists whose order changed are
+replaced, in a single edit (so one undo reverts a whole-document sort). Replaced lists also get
+`class-sort.js#tidyWhitespace()`: trimmed, with space/tab runs collapsed to one space; a
+multi-line list keeps its line breaks and indentation (including a line break at its very start
+or end, e.g. a closing quote on its own line) but loses trailing spaces and blank lines.
+Overlapping ranges (several cursors/selections in one list) are reduced to the widest one first.
+The ranges are offsets taken before the server request, so if the document changes (or closes)
+while waiting for the reply, nothing is replaced and a message says to try again.
+Lists already in order are left exactly as they are, whitespace included. Template code (`{{
+}}`, `${ }`, `<?php`, …) is never sent to the server, which would treat it as class names:
+`class-sort.js#sortablePart()` cuts each list at its first class containing template code and
+only the classes before it are sorted (`px-6 flex {{gridCols}}` → `flex px-6 {{gridCols}}`);
+everything from there on is left as is, so classes inside a conditional never move, and a list
+that starts with template code isn't sorted at all. The sorted part is re-joined to the template
+code with one space, or with the original line break + indentation if the template code started
+a new line. The per-class check is `isSortable()`, which ignores arbitrary `[...]` values (no
+whitespace inside, so `bg-[{{ x }}]` doesn't count as one), which legitimately contain
+`%`/`<`/`>`/`{` — an earlier version rejected `bottom-[70%]` — and only looks for `{`, `}`, `<`,
+`>`, `$`, since `%` is valid outside brackets (`from-10%`). Replacements are applied from the
+end of the document backwards. It needs the server running, i.e. hover preview or linting
+enabled; otherwise it shows a message saying so.
+
+### Color swatches
+
+`color-assistant.js` draws swatches beside color classes (`bg-red-500`, `hover:text-sky-600/50`,
+custom `@theme` colors) through Nova's JS `nova.assistants.registerColorAssistant`, **not** the
+language server: Nova's `LanguageClient` doesn't support `textDocument/documentColor` (it's not
+in Nova's supported-LSP-features list, and no release note adds it), so the server's
+`colorDecorators` stays `false`. Its class → hex `Map` is built from
+`completion-provider.js#buildCompletionData(theme)`'s `color` entries, so custom themes and
+`suppressDefaultColors` apply as they do to completions, and `ColorAssistant#rebuild(theme)` is
+registered with `ThemeCoordinator` alongside the completion and sidebar providers. The pure
+`findColorTokens(text, map)` scans the whole document per request: it strips variants (last `:`
+outside `[...]`/`(...)`) and `!` flags, and turns a `/50`, `/[0.5]` or `/[50%]` modifier into
+alpha. Swatches are read-only — `provideColorPresentations()` returns `[]`, since a color picked
+in Nova's picker has no palette class to write back. Toggled per project by
+`garrill.tailwind.enableColorSwatches` (unset = on); works without Node.js.
+
+The language server's document links (`@import`/`@config`/`@plugin`/`@source` paths) were
+considered and dropped: Nova's `LanguageClient` doesn't support `textDocument/documentLink`, and
+extensions have no link API.

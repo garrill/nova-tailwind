@@ -67,6 +67,13 @@
             "description": "Flag Tailwind problems in the Issues sidebar and editor, with quick fixes where available: conflicting classes (e.g. p-2 p-4), invalid @apply/variants/screens/directives, non-standard variant order, and classes with a simpler canonical form. On by default; turn it off here for any project that doesn't need it. Uses the same language server as hover preview, so it also requires Node.js and npm.",
             "type": "boolean",
             "default": true
+        },
+        {
+            "key": "garrill.tailwind.enableColorSwatches",
+            "title": "Show color swatches",
+            "description": "Show a color swatch next to Tailwind color classes such as bg-red-500 or text-sky-600/50, using your project's theme colors when a theme entry CSS file is set. Doesn't need Node.js.",
+            "type": "boolean",
+            "default": true
         }
     ],
 
@@ -82,6 +89,24 @@
             {
                 "title": "Tailwind: Filter Sidebar",
                 "command": "garrill.tailwind.sidebar.filter"
+            },
+            {
+                "title": "Tailwind: Sort Classes",
+                "command": "garrill.tailwind.sortClasses"
+            },
+            {
+                "title": "Tailwind: Sort All Classes in Document",
+                "command": "garrill.tailwind.sortAllClasses"
+            }
+        ],
+        "editor": [
+            {
+                "title": "Sort Tailwind Classes",
+                "command": "garrill.tailwind.sortClasses"
+            },
+            {
+                "title": "Sort All Tailwind Classes in Document",
+                "command": "garrill.tailwind.sortAllClasses"
             }
         ]
     },
