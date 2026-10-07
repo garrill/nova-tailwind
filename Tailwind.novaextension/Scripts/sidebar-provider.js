@@ -24,7 +24,7 @@ const PROPERTY_INDEX = buildPropertyIndex(UTILITY_FAMILIES)
 // `color` set otherwise falls back to Nova's generic placeholder glyph.
 const NODE_IMAGES = {
   category: '__symbol.category',
-  family: '__symbol.property',
+  page: '__symbol.property',
   class: '__symbol.style-class',
   variant: '__symbol.style-pseudoclass',
 }
@@ -200,8 +200,8 @@ exports.SidebarDataProvider = class SidebarDataProvider {
     }
     // contextValue drives extension.json's "contextCommands" `when` clauses. Copy Class Name/CSS
     // only make sense on a concrete class/variant leaf; Open in Tailwind Docs only where
-    // resolveDocSlug()/resolveVariantDocSlug() actually found one (not every family node resolves
-    // to a single doc page — see sidebar-data.js). A node can qualify for both, so the two facts
+    // resolveDocSlug()/resolveVariantDocSlug() actually found one (every page node, except a
+    // fallback `other` page — see sidebar-data.js). A node can qualify for both, so the two facts
     // are folded into one of four contextValue strings rather than trying to layer separate ones,
     // since TreeItem.contextValue only holds a single value.
     if (copyable && node.docUrl) {

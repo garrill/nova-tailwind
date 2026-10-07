@@ -89,14 +89,6 @@
             {
                 "title": "Tailwind: Filter Sidebar",
                 "command": "garrill.tailwind.sidebar.filter"
-            },
-            {
-                "title": "Tailwind: Sort Classes",
-                "command": "garrill.tailwind.sortClasses"
-            },
-            {
-                "title": "Tailwind: Sort All Classes in Document",
-                "command": "garrill.tailwind.sortAllClasses"
             }
         ],
         "editor": [

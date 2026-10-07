@@ -64,8 +64,8 @@ Tailwind.novaextension/
     class-parser.js            – extracts the partial class token before the cursor and
                                   splits it into `:`-stacked variant segments
     sidebar-data.js            – pure (no nova.* calls) tree-building for the Reference sidebar:
-                                  regroups buildCompletionData()'s flat output back into
-                                  Category → Family → class nodes, builds the CSS-property →
+                                  regroups buildCompletionData()'s flat output into
+                                  Category → docs page → class nodes, builds the CSS-property →
                                   family/prefix search index, and computes filter visibility
     sidebar-provider.js        – Nova TreeDataProvider wrapping sidebar-data.js: TreeItem
                                   construction, filter/expand-all UI state, rebuild(theme)
@@ -103,13 +103,15 @@ Tailwind.novaextension/
       theme.generated.js       – GENERATED — do not hand-edit; see gen/generate-theme.mjs
       utilities.js             – hand-maintained: which utility class families exist, each with
                                   a stable `id` used by completion-provider.js's `familyId` and
-                                  by docs.js/sidebar-data.js
+                                  by sidebar-data.js
       variants.js               – hand-maintained: every variant token (hover, md, group-hover, …)
       scales.js                – hand-maintained: numeric/keyword scales Tailwind doesn't publish
                                   as theme CSS (spacing steps, fractions, opacity steps, …)
-      docs.js                  – hand-maintained: FAMILY_NAMES/FAMILY_DOCS prose for the sidebar,
-                                  keyed by utilities.js's family `id` — kept separate from
-                                  utilities.js so that file stays structural/easy to diff
+      docs.js                  – hand-maintained: DOC_SECTIONS (tailwindcss.com/docs's own
+                                  section → page nav, with each page's one-line description)
+                                  and the CSS property → docs page slug tables, for the
+                                  sidebar — kept separate from utilities.js so that file stays
+                                  structural/easy to diff
   gen/
     generate-theme.mjs         – Node script (NOT run by Nova) that regenerates theme.generated.js
                                   from the `tailwindcss` npm package's own theme.css
@@ -141,7 +143,7 @@ form (`formatSpacingValue`/`remToPxRem`) and font sizes to a `font: 18px/156%` s
 (`formatFontSizeShorthand`), since `calc(var(--spacing) * 4)` is technically accurate but useless
 at a glance in a completion list. `familyId` mirrors the source `UTILITY_FAMILIES` object's `id`
 (absent on variants/custom-utility entries) — it's not used by `provideCompletionItems` itself,
-only by `sidebar-data.js`, which regroups this same flat array back into families rather than
+only by `sidebar-data.js`, which regroups this same flat array into docs pages rather than
 re-deriving the label/detail/color logic a second time.
 
 `provideCompletionItems` gates via `_isEligibleContext(editor, context)`, then asks
@@ -236,7 +238,10 @@ for one-shot text prompts. The filter command is also reachable from Nova's own 
 (⌘K) — `extension.json`'s `commands.command-palette` array lists it as "Tailwind: Filter
 Sidebar"; a command registered at runtime via `nova.commands.register()` (main.js) needs this
 manifest entry too, or it stays invocable only from wherever it's directly wired (the sidebar
-header button), never from the Command Palette. Since there's nowhere native to *display* the active filter either (no
+header button), never from the Command Palette. The reverse doesn't apply: Nova already lists
+`editor` menu commands in the Command Palette, so the Sort commands are declared under `editor`
+only — also listing them under `command-palette` showed each one twice.
+Since there's nowhere native to *display* the active filter either (no
 persistent field to show it in), `sidebar-provider.js#_buildStatusNode()` synthesizes one: a
 `Filter: "<query>"` (or `No matches for "<query>"`) row pinned above the real root nodes whenever
 a filter is active, wired to `clearFilter()` two ways: double-click (`TreeItem.command`), and a
@@ -246,22 +251,32 @@ by `TreeItem.contextValue`, which is why the status row sets `contextValue: 'fil
 `extension.json`'s section-level `contextCommands` scopes its one entry to
 `"when": "viewItem == 'filter-status'"`. Its identifier
 (`__filter_status__`) deliberately can't collide with any real node identifier, which are always
-`category:`/`family:`/`class:`/`variant:`-prefixed.
+`category:`/`page:`/`class:`/`variant:`-prefixed.
 
 `sidebar-data.js#buildSidebarTree(theme)` calls `completion-provider.js#buildCompletionData(theme)`
-and regroups its flat output (keyed by the `familyId`/`category` each entry already carries) into
-a `Category → Family → class` hierarchy, plus a top-level `Variants` branch and a `Custom` branch
-(only present when `theme.customUtilities` is non-empty). `kind: 'static'` families (see
-`utilities.js`'s entry-shape doc comment) contribute their items as direct children of the
-Category node rather than through an intermediate Family node, since each item is already a
-standalone concrete class bundled into one family object purely for authoring convenience.
+and regroups its flat output into a `Category → docs page → class` hierarchy, plus a top-level
+`Variants` branch and a `Custom` branch (only present when `theme.customUtilities` is
+non-empty). The grouping is Tailwind's own, not invented here: `docs.js`'s `DOC_SECTIONS` is a
+transcription of tailwindcss.com/docs's navigation (sections like Layout/Flexbox & Grid, each
+listing one page per CSS property, titled with the property name itself), and every class
+leaf goes under the page `resolveDocSlug()` resolves it to — the same lookup the "Open in
+Tailwind Docs" command uses — so categories and pages appear in the docs' order. `utilities.js`'s
+own `category`/family split plays no part in the tree: one page can collect several families
+(`width` gathers the spacing-scale, container-size, keyword and fraction families) and one
+`static`-kind family scatters across many pages (`layout-static` → display, position, overflow,
+…), so no class is ever a loose leaf directly under a category. A leaf whose slug is missing
+from `DOC_SECTIONS` falls back to its family's `category`, under an `other` page. Page nodes
+carry the docs page's one-line description as their tooltip and its URL as `docUrl`. When
+adding a utility whose property has a docs page not yet in `DOC_SECTIONS` (Tailwind added a
+page), add the page there in nav order, with its description from the page's
+`<meta name="description">`.
 
 `sidebar-data.js#buildPropertyIndex()` builds a `CSS property name → { familyId, prefix }[]`
 lookup directly from each family's structured `props` array (for `scale`/`color`/`numericList`
 kinds) or by regex-extracting property names out of `static`-kind items' `css` text — at the
 *family* level, not by enumerating every generated class instance, since a Tailwind docs page for
 "Padding" lists the family once, not once per spacing step. A bare sidebar filter query (e.g.
-`letter-spacing`) matches BOTH class/family names AND this property index (exact match first,
+`letter-spacing`) matches BOTH class/page names AND this property index (exact match first,
 substring fallback) at once — `sidebar-data.js#matchByName()`/`matchByProperty()` — so searching
 a property surfaces the classes that set it even when the property name never appears in their
 labels (`letter-spacing` → every `tracking-*` class). `prop:<name>` restricts the search to the
@@ -279,19 +294,15 @@ Since Nova's docs don't confirm what argument (if any) is passed to a tree-item 
 callback, `sidebar-provider.js#insertSelectedClass()` reads `TreeView#selection` at invocation
 time instead of relying on a callback argument.
 
-Every `TreeItem.identifier` is built deterministically from node data (e.g. `family:padding`,
+Every `TreeItem.identifier` is built deterministically from node data (e.g. `page:padding`,
 `class:padding:pt-4`) rather than array index/allocation order, so Nova's identifier-keyed
 expansion-state tracking behaves correctly across `treeView.reload()` calls — both for filtering
 and for the `Expand All`/`Collapse All` header commands, which set a tri-state
 `SidebarDataProvider#_forceExpanded` flag rather than walking/mutating individual nodes.
 
-`docs.js`'s `FAMILY_NAMES`/`FAMILY_DOCS` are threaded in as each Family node's display name and
-tooltip; for `static`-kind families (no Family node), the blurb is folded into each leaf's
-tooltip alongside its own resolved-CSS `detail` text instead.
-
 `sidebar-provider.js`'s `NODE_IMAGES` maps each node kind to one of Nova's bundled `__symbol.*`
 icons (originally meant for code-outline sidebars, but a semantically decent fit here too, and
-free — no custom asset needed): `category` → `__symbol.category`, `family` → `__symbol.property`,
+free — no custom asset needed): `category` → `__symbol.category`, `page` → `__symbol.property`,
 `class` → `__symbol.style-class`, `variant` → `__symbol.style-pseudoclass`. A `TreeItem` with
 neither `image` nor `color` set falls back to Nova's generic placeholder glyph, which is why
 every node needs one or the other. Color leaves (e.g. `bg-red-500`) get `color` instead of
@@ -411,8 +422,8 @@ multi-byte characters (e.g. `…`).
 
 ### Class sorting
 
-**Tailwind: Sort Classes** (Command Palette, and **Editor → Sort Tailwind Classes**) sorts class
-lists into Tailwind's recommended order — the same order `prettier-plugin-tailwindcss` uses — by
+**Editor → Sort Tailwind Classes** sorts class lists into Tailwind's recommended order — the same
+order `prettier-plugin-tailwindcss` uses — by
 sending the language server its custom `@/tailwindCSS/sortSelection` request (`{ uri,
 classLists: string[] }` → `{ classLists }`, or `{ error: 'no-project' | 'unknown' }`), via
 `TailwindLanguageClient#sendRequest()` (Nova's `LanguageClient#sendRequest` supports custom
@@ -420,7 +431,7 @@ methods; the shim passes them through untouched). The server keeps each list's w
 puts classes it doesn't know first, so there's no reordering logic in this extension.
 `main.js#sortClasses()` sorts each non-empty selection as one list; an empty selection uses
 `class-sort.js#findClassListAt()` to find the class attribute/`class:` key value or `@apply`
-statement around the cursor. **Tailwind: Sort All Classes in Document**
+statement around the cursor. **Editor → Sort All Tailwind Classes in Document**
 (`main.js#sortAllClasses()`) uses `class-sort.js#findClassLists()` — which `findClassListAt()`
 is built on — over the whole document instead; values may span lines (the server keeps each line
 break where it was, between whichever classes now fall either side of it), and unterminated

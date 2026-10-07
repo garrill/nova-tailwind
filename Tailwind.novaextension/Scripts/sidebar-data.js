@@ -6,9 +6,10 @@
   this can be exercised outside Nova with a small stub — see CLAUDE.md's testing notes.
 
   buildSidebarTree(theme) regroups completion-provider.js#buildCompletionData(theme)'s flat
-  output back into a browsable hierarchy (Category -> Family -> concrete class, plus a top-level
-  Variants branch and an optional Custom branch), reusing all of its label/detail/color
-  resolution rather than re-deriving it. buildPropertyIndex() builds a `CSS property name ->
+  output into a browsable hierarchy (Category -> docs page -> concrete class, following
+  tailwindcss.com/docs's own navigation — see docs.js's DOC_SECTIONS — plus a top-level Variants
+  branch and an optional Custom branch), reusing all of its label/detail/color resolution rather
+  than re-deriving it. buildPropertyIndex() builds a `CSS property name ->
   family/prefix` lookup straight from UTILITY_FAMILIES's structured `props` data (or, for
   `static`-kind families, by extracting property names out of their hand-authored `css` text),
   at the family level rather than enumerating every generated class instance — a Tailwind docs
@@ -18,25 +19,24 @@
   Node shape (plain objects, not Nova TreeItems):
   {
     identifier: string,       // stable, unique across the whole tree
-    kind: 'category' | 'family' | 'class' | 'variant',
+    kind: 'category' | 'page' | 'class' | 'variant',
     name: string,              // display label
     parentId: string | null,
-    children?: node[],         // present (possibly empty) on category/family nodes
+    children?: node[],         // present (possibly empty) on category/page nodes
     descriptiveText?: string,  // leaf only — the resolved CSS, e.g. "padding: 16px (1rem);"
-    tooltip?: string,
+    tooltip?: string,          // page: the docs page's one-line description
     color?: string,            // leaf only — resolved hex, converted to a Nova Color by the caller
     insertText?: string,       // leaf only — text to insert on double-click
     searchText?: string,       // leaf only — lowercased insertText, for substring filtering
     familyId?: string,         // leaf only (class kind) — for property-index matching
     prefix?: string | null,    // leaf only (class kind) — which family.prefixes entry produced it
-    docUrl?: string | null,    // class/variant always; family only when every child agrees on one
-                                // page — see resolveDocSlug()/resolveVariantDocSlug() below
+    docUrl?: string | null,    // the docs page — see resolveDocSlug()/resolveVariantDocSlug()
   }
 */
 
 const { UTILITY_FAMILIES } = require('./data/utilities.js')
 const { VARIANTS } = require('./data/variants.js')
-const { FAMILY_NAMES, FAMILY_DOCS, PROPERTY_DOC_SLUGS, PREFIX_DOC_SLUG_OVERRIDES } = require('./data/docs.js')
+const { DOC_SECTIONS, PROPERTY_DOC_SLUGS, PREFIX_DOC_SLUG_OVERRIDES } = require('./data/docs.js')
 const { buildCompletionData } = require('./completion-provider.js')
 
 const VARIANTS_ROOT_ID = 'variants'
@@ -102,12 +102,7 @@ function buildClassLeaf(entry, family) {
   const prefix = family ? derivePrefix(entry.label, family) : null
   const identifier = `class:${familyId || 'custom'}:${entry.label}`
 
-  // static-kind families have no intermediate family node, so their one-line blurb is folded
-  // into each leaf's tooltip instead (see docs.js's FAMILY_DOCS).
-  const blurb = family && family.kind === 'static' ? FAMILY_DOCS[family.id] : null
-  const tooltipParts = []
-  if (blurb) tooltipParts.push(blurb)
-  tooltipParts.push(entry.detail)
+  const tooltipParts = [entry.detail]
   if (entry.documentation) tooltipParts.push(entry.documentation)
 
   const docSlug = resolveDocSlug(family, prefix, entry.detail)
@@ -142,6 +137,35 @@ function buildVariantLeaf(entry) {
   }
 }
 
+// slug -> { section, title, description, order } from docs.js's DOC_SECTIONS, plus each
+// section's position in the docs nav, so categories and pages are listed in the docs' order.
+const DOC_PAGES = new Map()
+const SECTION_ORDER = new Map()
+DOC_SECTIONS.forEach((section, sectionIndex) => {
+  SECTION_ORDER.set(section.name, sectionIndex)
+  section.pages.forEach((page, pageIndex) => {
+    DOC_PAGES.set(page.slug, {
+      section: section.name,
+      title: page.title || page.slug,
+      description: page.description,
+      order: pageIndex,
+    })
+  })
+})
+
+// Every class leaf hangs under the docs page that documents it (Category -> page -> class), so
+// a property's classes are always together in one folder however utilities.js happens to split
+// them into families (e.g. width's spacing-scale, container-size, keyword and fraction
+// families all land under one `width` page). A leaf whose page isn't in DOC_SECTIONS (shouldn't
+// happen, but utilities.js and the docs can drift) falls back to its family's category, in an
+// `other` page.
+function pageFor(leaf, family) {
+  const slug = leaf.docUrl ? leaf.docUrl.slice(DOC_BASE_URL.length) : null
+  const page = slug ? DOC_PAGES.get(slug) : null
+  if (page) return { slug, ...page }
+  return { slug: null, section: family.category, title: 'other', description: null, order: Infinity }
+}
+
 function buildSidebarTree(theme) {
   const data = buildCompletionData(theme)
   const nodesById = new Map()
@@ -156,77 +180,59 @@ function buildSidebarTree(theme) {
     entriesByFamily.get(entry.familyId).push(entry)
   }
 
-  const roots = []
-  const categoryNodes = new Map() // category name -> node
+  const categoryNodes = new Map() // section name -> node
+  const pageNodes = new Map() // page identifier -> node
+  const pageOrder = new Map() // page identifier -> position in its section's docs nav
 
-  // Family (dropdown) nodes and static-kind (loose class) leaves can be interleaved in
-  // UTILITY_FAMILIES for a given category, but the sidebar always wants dropdowns listed above
-  // loose classes within a category — so each category collects the two kinds separately here
-  // and concatenates family-first once the whole pass is done, rather than pushing straight into
-  // catNode.children in source order.
-  const familyChildrenByCategory = new Map()
-  const staticChildrenByCategory = new Map()
-
+  // Leaves within a page keep UTILITY_FAMILIES's source order (families in order, each
+  // family's items in order).
   for (const family of UTILITY_FAMILIES) {
-    let catNode = categoryNodes.get(family.category)
-    if (!catNode) {
-      catNode = {
-        identifier: `category:${family.category}`,
-        kind: 'category',
-        name: family.category,
-        parentId: null,
-        children: [],
-      }
-      categoryNodes.set(family.category, catNode)
-      nodesById.set(catNode.identifier, catNode)
-      roots.push(catNode)
-      familyChildrenByCategory.set(catNode.identifier, [])
-      staticChildrenByCategory.set(catNode.identifier, [])
-    }
-
-    const entries = entriesByFamily.get(family.id) || []
-
-    if (family.kind === 'static') {
-      const staticChildren = staticChildrenByCategory.get(catNode.identifier)
-      for (const entry of entries) {
-        const leaf = buildClassLeaf(entry, family)
-        leaf.parentId = catNode.identifier
-        nodesById.set(leaf.identifier, leaf)
-        staticChildren.push(leaf)
-      }
-      continue
-    }
-
-    const familyChildren = entries.map((entry) => {
+    for (const entry of entriesByFamily.get(family.id) || []) {
       const leaf = buildClassLeaf(entry, family)
-      leaf.parentId = `family:${family.id}`
+      const page = pageFor(leaf, family)
+
+      let catNode = categoryNodes.get(page.section)
+      if (!catNode) {
+        catNode = {
+          identifier: `category:${page.section}`,
+          kind: 'category',
+          name: page.section,
+          parentId: null,
+          children: [],
+        }
+        categoryNodes.set(page.section, catNode)
+        nodesById.set(catNode.identifier, catNode)
+      }
+
+      const pageId = page.slug ? `page:${page.slug}` : `page:other:${page.section}`
+      let pageNode = pageNodes.get(pageId)
+      if (!pageNode) {
+        pageNode = {
+          identifier: pageId,
+          kind: 'page',
+          name: page.title,
+          parentId: catNode.identifier,
+          tooltip: page.description,
+          children: [],
+          docUrl: page.slug ? `${DOC_BASE_URL}${page.slug}` : null,
+        }
+        pageNodes.set(pageId, pageNode)
+        pageOrder.set(pageId, page.order)
+        nodesById.set(pageId, pageNode)
+        catNode.children.push(pageNode)
+      }
+
+      leaf.parentId = pageId
       nodesById.set(leaf.identifier, leaf)
-      return leaf
-    })
-
-    // Only offer a doc link on the family node itself when every child leaf agrees on one page —
-    // a family like "Width / Height (Spacing Scale)" spans width/min-width/max-width/height/...,
-    // each with its own doc page, so there's no single correct link to give the family node.
-    const childDocUrls = new Set(familyChildren.map((c) => c.docUrl).filter(Boolean))
-
-    const familyNode = {
-      identifier: `family:${family.id}`,
-      kind: 'family',
-      name: FAMILY_NAMES[family.id] || family.id,
-      parentId: catNode.identifier,
-      tooltip: FAMILY_DOCS[family.id],
-      children: familyChildren,
-      docUrl: childDocUrls.size === 1 ? [...childDocUrls][0] : null,
+      pageNode.children.push(leaf)
     }
-    nodesById.set(familyNode.identifier, familyNode)
-    familyChildrenByCategory.get(catNode.identifier).push(familyNode)
   }
 
-  for (const catNode of categoryNodes.values()) {
-    catNode.children = [
-      ...familyChildrenByCategory.get(catNode.identifier),
-      ...staticChildrenByCategory.get(catNode.identifier),
-    ]
+  const byDocsOrder = (order) => (a, b) => order(a) - order(b)
+  const sectionPosition = (node) => SECTION_ORDER.has(node.name) ? SECTION_ORDER.get(node.name) : Infinity
+  const roots = [...categoryNodes.values()].sort(byDocsOrder(sectionPosition))
+  for (const catNode of roots) {
+    catNode.children.sort(byDocsOrder((node) => pageOrder.get(node.identifier)))
   }
 
   const variantsNode = {
@@ -274,8 +280,7 @@ function buildPropertyIndex(families = UTILITY_FAMILIES) {
   // tracking-* class), or a `static`-kind item's own `label` — NOT the whole family, since a
   // static family bundles unrelated standalone classes purely for authoring convenience (e.g.
   // Layout's static family's `sr-only` sets `border-width: 0` as one of several visually-hidden
-  // reset properties, but none of Layout's other ~80 classes do — see docs.js's blurb for
-  // 'layout-static').
+  // reset properties, but none of Layout's other ~80 classes do).
   const index = new Map()
 
   function addEntry(rawProperty, familyId, discriminator) {
@@ -336,14 +341,14 @@ function matchByProperty(nodesById, propertyIndex, propQuery) {
   return matched
 }
 
-// Finds every class/variant leaf whose label matches `textQuery`, plus every family whose
-// display name matches (which also pulls in all of that family's leaves).
+// Finds every class/variant leaf whose label matches `textQuery`, plus every docs page whose
+// name matches (which also pulls in all of that page's leaves).
 function matchByName(nodesById, textQuery) {
   const matched = new Set()
   for (const node of nodesById.values()) {
     if (node.kind === 'class' || node.kind === 'variant') {
       if (node.searchText.includes(textQuery)) matched.add(node.identifier)
-    } else if (node.kind === 'family') {
+    } else if (node.kind === 'page') {
       if (node.name.toLowerCase().includes(textQuery)) {
         matched.add(node.identifier)
         for (const child of node.children) matched.add(child.identifier)
@@ -355,7 +360,7 @@ function matchByName(nodesById, textQuery) {
 
 // Resolves a query into the set of node identifiers that should remain visible — matches plus
 // their full ancestor chain, so a match is reachable without the user manually expanding
-// anything. A bare query (e.g. `letter-spacing`) matches BOTH class/family names AND CSS
+// anything. A bare query (e.g. `letter-spacing`) matches BOTH class/page names AND CSS
 // property names, so searching a property (like `letter-spacing`) surfaces the classes that set
 // it (`tracking-*`) even though the property name never appears in their labels. `prop:<name>`
 // restricts the search to property names only, for when a property name happens to collide with

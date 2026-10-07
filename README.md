@@ -7,7 +7,7 @@ Autocompletion for [Tailwind CSS](https://tailwindcss.com) v4 utility classes an
 - Completes variants (`hover:`, `md:`, `dark:`, `group-hover:`, `@lg:`, …) and lets them stack (`md:hover:bg-blue-500`), replacing only the segment you're typing.
 - Understands the negative-value prefix (`-mt-4`) for utilities that support it.
 - Works in HTML, PHP, Blade, ERB, Twig, Liquid, Pug/Jade, Markdown, Vue, Svelte, Astro, JavaScript/TypeScript (incl. JSX/TSX), and CSS/Sass/Scss files.
-- Sidebar shows all utility classes for quick reference
+- Sidebar shows all utility classes for quick reference, grouped the same way as Tailwind's own docs (section → CSS property)
 - Filter sidebar by CSS property of Tailwind class.
 - Custom theme overrides by importing `@theme`/`@utility` from your CSS file.
 - Hover preview: hover a class to see its full CSS (see below).
@@ -42,7 +42,7 @@ It uses the same language server as hover preview, so it has the same Node.js/np
 
 ## Sorting classes
 
-Run **Tailwind: Sort Classes** from the Command Palette, or **Editor → Sort Tailwind Classes**, to put classes in Tailwind's recommended order (the same order Prettier's Tailwind plugin uses). With the cursor inside a `class="…"` attribute or an `@apply` statement it sorts that list; with a selection it sorts the selected classes; multiple cursors and selections work too. To sort every class list in the file at once, run **Tailwind: Sort All Classes in Document** (or **Editor → Sort All Tailwind Classes in Document**); it sorts all `class`/`className` attribute values and `@apply` statements in one step, which a single undo reverts. Any list the sort reorders also has its whitespace tidied: double spaces collapsed, and spaces at the start and end removed. Template code (`{{ }}`, `${ }`, `<?php`, …) is left where it is: only the classes before it are sorted, so `px-6 flex {{gridCols}}` becomes `flex px-6 {{gridCols}}`, and classes inside a `{% if %}` never move.
+Run **Editor → Sort Tailwind Classes** (also in the Command Palette) to put classes in Tailwind's recommended order (the same order Prettier's Tailwind plugin uses). With the cursor inside a `class="…"` attribute or an `@apply` statement it sorts that list; with a selection it sorts the selected classes; multiple cursors and selections work too. To sort every class list in the file at once, run **Editor → Sort All Tailwind Classes in Document**; it sorts all `class`/`className` attribute values and `@apply` statements in one step, which a single undo reverts. Any list the sort reorders also has its whitespace tidied: double spaces collapsed, and spaces at the start and end removed. Template code (`{{ }}`, `${ }`, `<?php`, …) is left where it is: only the classes before it are sorted, so `px-6 flex {{gridCols}}` becomes `flex px-6 {{gridCols}}`, and classes inside a `{% if %}` never move.
 
 It uses the same language server as hover preview and linting, so one of those needs to be on (and Node.js installed).
 
