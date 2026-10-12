@@ -3,7 +3,7 @@
     "name": "Tailwind",
     "organization": "Garrill",
     "description": "Tailwind CSS v4 hover previews, linting and class sorting from Tailwind's official language server, plus completions, color swatches and a reference sidebar.",
-    "version": "1.2",
+    "version": "1.3",
     "categories": ["completions", "sidebars", "languages"],
 
     "repository": "https://github.com/garrill/nova-tailwind",
