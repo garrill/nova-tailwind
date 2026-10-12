@@ -264,9 +264,16 @@ Tailwind Docs" command uses — so categories and pages appear in the docs' orde
 own `category`/family split plays no part in the tree: one page can collect several families
 (`width` gathers the spacing-scale, container-size, keyword and fraction families) and one
 `static`-kind family scatters across many pages (`layout-static` → display, position, overflow,
-…), so no class is ever a loose leaf directly under a category. A leaf whose slug is missing
+…), so no class is ever a loose leaf directly under a category. A `static` item's page is its
+CSS's first property with a docs page, except that a single `filter`/`backdrop-filter` function
+goes to that function's page (`grayscale` → `filter-grayscale`, beside `grayscale-50`), and
+`docs.js`'s `STATIC_DOC_SLUG_OVERRIDES` hand-places multi-property classes whose first property
+isn't where the docs put them (`sr-only` → display, `truncate` → text-overflow). Two families
+generating the same label would list it twice on one page — keep each label in one family
+(`grow-0`/`shrink-0` come only from `flex-grow-shrink`). A leaf whose slug is missing
 from `DOC_SECTIONS` falls back to its family's `category`, under an `other` page. Page nodes
-carry the docs page's one-line description as their tooltip and its URL as `docUrl`. When
+carry the docs page's one-line description as their tooltip (also appended to each leaf's
+tooltip) and its URL as `docUrl`. When
 adding a utility whose property has a docs page not yet in `DOC_SECTIONS` (Tailwind added a
 page), add the page there in nav order, with its description from the page's
 `<meta name="description">`.
@@ -281,11 +288,15 @@ substring fallback) at once — `sidebar-data.js#matchByName()`/`matchByProperty
 a property surfaces the classes that set it even when the property name never appears in their
 labels (`letter-spacing` → every `tracking-*` class). `prop:<name>` restricts the search to the
 property index only, for the rare case a property name collides with unrelated class-name text.
-`sidebar-data.js#filterTree()` returns the matched nodes plus their full ancestor chain, so
+`sidebar-data.js#filterTree()` returns the matched nodes plus their full ancestor chain
+(`visible`), the pages matched by name (`openPages`, which show all their leaves without each
+being a match) and which nodes to expand (`expanded`), so
 `sidebar-provider.js#getChildren()` can omit non-matching branches entirely (not just visually
-collapse them) and `getTreeItem()` can force every node on a match's path to
-`TreeItemCollapsibleState.Expanded` while a filter is active — matches are reachable without the
-user manually expanding anything.
+collapse them) and `getTreeItem()` can expand every node on a match's path while a filter is
+active — matches are reachable without the user manually expanding anything. The exception is
+a page showing more than `MAX_EXPANDED_PAGE_SIZE` (100) leaves, which stays collapsed: a broad
+query like `color` or `border` would otherwise force open pages of thousands of rows
+(border-color) and make the tree reload slow.
 
 Double-clicking a leaf (`TreeItem.command` → `garrill.tailwind.sidebar.insertClass`, registered in
 `main.js`) inserts its class/variant token at the active editor's cursor via

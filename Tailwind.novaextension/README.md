@@ -1,19 +1,23 @@
-# Tailwind CSS Completions For Nova 
+# Tailwind CSS for Nova
 
-Autocompletion for [Tailwind CSS](https://tailwindcss.com) v4 utility classes and variants in [Nova](https://nova.app).
+[Tailwind CSS](https://tailwindcss.com) v4 support for [Nova](https://nova.app): hover previews, linting and class sorting from Tailwind's official language server (the same one behind VS Code's Tailwind extension), plus completions, color swatches and a reference sidebar.
 
-- Up-to-date with **Tailwind v4.3**
+Up to date with **Tailwind v4.3**. Works in HTML, PHP, Blade, ERB, Twig, Liquid, Pug/Jade, Markdown, Vue, Svelte, Astro, JavaScript/TypeScript (incl. JSX/TSX), and CSS/Sass/Scss files.
+
+**From Tailwind's language server** (needs Node.js and npm, see below):
+
+- Hover preview: hover a class to see its full CSS.
+- Linting: conflicting classes, invalid `@apply`/variants/directives and more flagged as issues, with quick fixes.
+- Sort classes into Tailwind's recommended order.
+
+**Built in** (no Node.js needed):
+
 - Completes utility classes (`bg-`, `p-`, `flex`, `grid-cols-`, …) with a live color swatch for color-scale utilities.
 - Completes variants (`hover:`, `md:`, `dark:`, `group-hover:`, `@lg:`, …) and lets them stack (`md:hover:bg-blue-500`), replacing only the segment you're typing.
 - Understands the negative-value prefix (`-mt-4`) for utilities that support it.
-- Works in HTML, PHP, Blade, ERB, Twig, Liquid, Pug/Jade, Markdown, Vue, Svelte, Astro, JavaScript/TypeScript (incl. JSX/TSX), and CSS/Sass/Scss files.
-- Sidebar shows all utility classes for quick reference, grouped the same way as Tailwind's own docs (section → CSS property)
-- Filter sidebar by CSS property of Tailwind class.
-- Custom theme overrides by importing `@theme`/`@utility` from your CSS file.
-- Hover preview: hover a class to see its full CSS (see below).
-- Linting: conflicting classes, invalid `@apply`/variants/directives and more flagged as issues, with quick fixes (see below).
-- Sort classes into Tailwind's recommended order (see below).
 - Color swatches next to color classes in the editor, e.g. `bg-red-500`, `text-sky-600/50`.
+- Sidebar shows all utility classes for quick reference, and can be filtered by class name or CSS property.
+- Custom theme overrides by importing `@theme`/`@utility` from your CSS file.
 
 ## Requirements
 
@@ -23,12 +27,12 @@ The default class/color/scale data is generated ahead of time from the `tailwind
 
 On by default. Turn it off for a project in **Project → Project Settings → Tailwind → Enable hover preview**.
 
-- **Needs Node.js and npm.** The first time it runs, the extension installs Tailwind's official language server (`@tailwindcss/language-server`) via npm, which needs network access. It's installed into the extension's own storage, not your project. Without Node.js/npm, Nova shows a notification with a button to turn hover preview and linting off for that project; completions and the sidebar still work either way.
+- **Needs Node.js and npm.** The first time it runs, the extension installs Tailwind's official language server (`@tailwindcss/language-server`) via npm, which needs network access. It's installed into the extension's own storage, not your project.
 - **Nova only lets one language server provide hovers for each language.** If a language already has a server with hover enabled, such as Nova's built-in **HTML Language Server** or **CSS Language Server**, Tailwind's hovers won't show. To fix it, open **Nova → Settings → Languages**, pick the language, click the ⓘ next to its existing language server, and turn off hover in its **Features** tab. That server keeps providing completions, diagnostics and the rest. Repeat for each language you want Tailwind hovers in, e.g. HTML and CSS.
 
 ## Linting
 
-On by default. Turn it off for a project in **Project → Project Settings → Tailwind → Enable linting**.
+On by default. Turn it per project in **Project → Project Settings → Tailwind → Enable linting**.
 
 Tailwind problems show up in Nova's **Issues** sidebar and are underlined in the editor, with quick fixes where available (**Editor → Show Code Actions**). It uses Tailwind's own rules:
 
@@ -42,7 +46,7 @@ It uses the same language server as hover preview, so it has the same Node.js/np
 
 ## Sorting classes
 
-Run **Editor → Sort Tailwind Classes** (also in the Command Palette) to put classes in Tailwind's recommended order (the same order Prettier's Tailwind plugin uses). With the cursor inside a `class="…"` attribute or an `@apply` statement it sorts that list; with a selection it sorts the selected classes; multiple cursors and selections work too. To sort every class list in the file at once, run **Editor → Sort All Tailwind Classes in Document**; it sorts all `class`/`className` attribute values and `@apply` statements in one step, which a single undo reverts. Any list the sort reorders also has its whitespace tidied: double spaces collapsed, and spaces at the start and end removed. Template code (`{{ }}`, `${ }`, `<?php`, …) is left where it is: only the classes before it are sorted, so `px-6 flex {{gridCols}}` becomes `flex px-6 {{gridCols}}`, and classes inside a `{% if %}` never move.
+Run **Editor → Sort Tailwind Classes** (also in the Command Palette) to put classes in Tailwind's recommended order (the same order Prettier's Tailwind plugin uses). With the cursor inside a `class="…"` attribute or an `@apply` statement it sorts that list; with a selection it sorts the selected classes; multiple cursors and selections work too. To sort every class list in the file at once, run **Editor → Sort All Tailwind Classes in Document**; it sorts all `class`/`className` attribute values and `@apply` statements in one step, which a single undo reverts. Template code (`{{ }}`, `${ }`, `<?php`, …) is left where it is: only the classes before it are sorted, so `px-6 flex {{gridCols}}` becomes `flex px-6 {{gridCols}}`, and classes inside a `{% if %}` never move.
 
 It uses the same language server as hover preview and linting, so one of those needs to be on (and Node.js installed).
 
