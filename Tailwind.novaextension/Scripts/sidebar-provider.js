@@ -35,7 +35,7 @@ exports.SidebarDataProvider = class SidebarDataProvider {
     this._nodesById = new Map()
     this._treeView = null
     this._filterQuery = ''
-    this._filter = null // { visible: Set<identifier>, matched: Set<identifier> } | null
+    this._filter = null // filterTree()'s { visible, matched, openPages, expanded } | null
     this._forceExpanded = null // null = each node's natural default; true/false = force all
 
     this.rebuild()
@@ -151,7 +151,7 @@ exports.SidebarDataProvider = class SidebarDataProvider {
     }
 
     const children = element.children || []
-    if (!this._filter) return children
+    if (!this._filter || this._filter.openPages.has(element.identifier)) return children
     return children.filter((child) => this._filter.visible.has(child.identifier))
   }
 
@@ -175,7 +175,9 @@ exports.SidebarDataProvider = class SidebarDataProvider {
 
     if (hasChildren) {
       if (this._filter) {
-        collapsibleState = TreeItemCollapsibleState.Expanded
+        collapsibleState = this._filter.expanded.has(node.identifier)
+          ? TreeItemCollapsibleState.Expanded
+          : TreeItemCollapsibleState.Collapsed
       } else if (this._forceExpanded === true) {
         collapsibleState = TreeItemCollapsibleState.Expanded
       } else {

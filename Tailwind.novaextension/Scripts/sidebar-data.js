@@ -30,13 +30,16 @@
     searchText?: string,       // leaf only — lowercased insertText, for substring filtering
     familyId?: string,         // leaf only (class kind) — for property-index matching
     prefix?: string | null,    // leaf only (class kind) — which family.prefixes entry produced it
+    docSlug?: string | null,   // class leaf only — the docs page's slug, see resolveDocSlug()
     docUrl?: string | null,    // the docs page — see resolveDocSlug()/resolveVariantDocSlug()
   }
 */
 
 const { UTILITY_FAMILIES } = require('./data/utilities.js')
 const { VARIANTS } = require('./data/variants.js')
-const { DOC_SECTIONS, PROPERTY_DOC_SLUGS, PREFIX_DOC_SLUG_OVERRIDES } = require('./data/docs.js')
+const {
+  DOC_SECTIONS, PROPERTY_DOC_SLUGS, PREFIX_DOC_SLUG_OVERRIDES, STATIC_DOC_SLUG_OVERRIDES,
+} = require('./data/docs.js')
 const { buildCompletionData } = require('./completion-provider.js')
 
 const VARIANTS_ROOT_ID = 'variants'
@@ -44,13 +47,22 @@ const CUSTOM_ROOT_ID = 'custom'
 
 const DOC_BASE_URL = 'https://tailwindcss.com/docs/'
 
-// Extracts the first `property:` token from a hand-authored `"property: value; ..."` string
-// (same convention buildPropertyIndex() relies on) that has a known docs page.
+// Finds the docs page for the first declaration in a hand-authored `"property: value; ..."`
+// string (same convention buildPropertyIndex() relies on) whose property has one. A
+// `filter`/`backdrop-filter` value that's a single function (`grayscale(100%)`) goes to that
+// function's own page (`filter-grayscale`), next to the same function's scale classes.
+const DECLARATION_PATTERN = /([a-z-]+)\s*:\s*([^;]*)/g
+
 function firstDocumentedProperty(cssText) {
-  PROPERTY_TOKEN_PATTERN.lastIndex = 0
+  DECLARATION_PATTERN.lastIndex = 0
   let match
-  while ((match = PROPERTY_TOKEN_PATTERN.exec(cssText))) {
-    const slug = PROPERTY_DOC_SLUGS[match[1]]
+  while ((match = DECLARATION_PATTERN.exec(cssText))) {
+    const [, property, value] = match
+    const filterFunction = /^(?:backdrop-)?filter$/.test(property) && value.match(/^([a-z-]+)\(/)
+    if (filterFunction && DOC_PAGES.has(`${property}-${filterFunction[1]}`)) {
+      return `${property}-${filterFunction[1]}`
+    }
+    const slug = PROPERTY_DOC_SLUGS[property]
     if (slug) return slug
   }
   return null
@@ -59,12 +71,15 @@ function firstDocumentedProperty(cssText) {
 // Resolves which tailwindcss.com/docs/<slug> page documents a given class leaf, for the
 // sidebar's "Open in Tailwind Docs" right-click command. `static`-kind items carry their real
 // CSS in `detail` (see completion-provider.js's buildCompletionData()), so the property can be
-// read straight off it. Other kinds may describe their `props` with non-CSS text instead (e.g.
+// read straight off it (STATIC_DOC_SLUG_OVERRIDES covers the multi-property classes whose
+// first property isn't where the docs put them). Other kinds may describe their `props` with non-CSS text instead (e.g.
 // `'scale (x)'`) purely for display — PREFIX_DOC_SLUG_OVERRIDES hand-maps those specific cases;
 // see docs.js's comment on both tables for why.
-function resolveDocSlug(family, prefix, detail) {
+function resolveDocSlug(family, label, prefix, detail) {
   if (!family) return null
-  if (family.kind === 'static') return firstDocumentedProperty(detail)
+  if (family.kind === 'static') {
+    return STATIC_DOC_SLUG_OVERRIDES[label] || firstDocumentedProperty(detail)
+  }
 
   const override = PREFIX_DOC_SLUG_OVERRIDES[`${family.id}::${prefix}`]
   if (override) return override
@@ -105,7 +120,7 @@ function buildClassLeaf(entry, family) {
   const tooltipParts = [entry.detail]
   if (entry.documentation) tooltipParts.push(entry.documentation)
 
-  const docSlug = resolveDocSlug(family, prefix, entry.detail)
+  const docSlug = resolveDocSlug(family, entry.label, prefix, entry.detail)
 
   return {
     identifier,
@@ -119,6 +134,7 @@ function buildClassLeaf(entry, family) {
     searchText: entry.label.toLowerCase(),
     familyId,
     prefix,
+    docSlug,
     docUrl: docSlug ? `${DOC_BASE_URL}${docSlug}` : null,
   }
 }
@@ -160,9 +176,8 @@ DOC_SECTIONS.forEach((section, sectionIndex) => {
 // happen, but utilities.js and the docs can drift) falls back to its family's category, in an
 // `other` page.
 function pageFor(leaf, family) {
-  const slug = leaf.docUrl ? leaf.docUrl.slice(DOC_BASE_URL.length) : null
-  const page = slug ? DOC_PAGES.get(slug) : null
-  if (page) return { slug, ...page }
+  const page = leaf.docSlug ? DOC_PAGES.get(leaf.docSlug) : null
+  if (page) return { slug: leaf.docSlug, ...page }
   return { slug: null, section: family.category, title: 'other', description: null, order: Infinity }
 }
 
@@ -223,12 +238,17 @@ function buildSidebarTree(theme) {
       }
 
       leaf.parentId = pageId
+      // The page's one-line description, so a leaf reached by filtering or expanding still
+      // says what it's for without hovering its parent row.
+      if (page.description) leaf.tooltip += `\n${page.description}`
       nodesById.set(leaf.identifier, leaf)
       pageNode.children.push(leaf)
     }
   }
 
-  const byDocsOrder = (order) => (a, b) => order(a) - order(b)
+  // Unknown positions are Infinity; `|| 0` turns Infinity - Infinity (NaN) into a tie, which
+  // keeps the comparator consistent (and the sort stable) when several are unknown.
+  const byDocsOrder = (order) => (a, b) => (order(a) - order(b)) || 0
   const sectionPosition = (node) => SECTION_ORDER.has(node.name) ? SECTION_ORDER.get(node.name) : Infinity
   const roots = [...categoryNodes.values()].sort(byDocsOrder(sectionPosition))
   for (const catNode of roots) {
@@ -341,26 +361,31 @@ function matchByProperty(nodesById, propertyIndex, propQuery) {
   return matched
 }
 
-// Finds every class/variant leaf whose label matches `textQuery`, plus every docs page whose
-// name matches (which also pulls in all of that page's leaves).
+// Finds every class/variant leaf whose label matches `textQuery`, and separately every docs
+// page whose name matches — a matched page shows all of its leaves (see filterTree()) without
+// each one being added as a match.
 function matchByName(nodesById, textQuery) {
-  const matched = new Set()
+  const leaves = new Set()
+  const pages = new Set()
   for (const node of nodesById.values()) {
     if (node.kind === 'class' || node.kind === 'variant') {
-      if (node.searchText.includes(textQuery)) matched.add(node.identifier)
+      if (node.searchText.includes(textQuery)) leaves.add(node.identifier)
     } else if (node.kind === 'page') {
-      if (node.name.toLowerCase().includes(textQuery)) {
-        matched.add(node.identifier)
-        for (const child of node.children) matched.add(child.identifier)
-      }
+      if (node.name.toLowerCase().includes(textQuery)) pages.add(node.identifier)
     }
   }
-  return matched
+  return { leaves, pages }
 }
 
+// A page showing more leaves than this while filtering stays collapsed rather than forced open
+// — a broad query (`color`, `border`) would otherwise expand pages of thousands of rows (e.g.
+// border-color), making Nova's tree reload slow.
+const MAX_EXPANDED_PAGE_SIZE = 100
+
 // Resolves a query into the set of node identifiers that should remain visible — matches plus
-// their full ancestor chain, so a match is reachable without the user manually expanding
-// anything. A bare query (e.g. `letter-spacing`) matches BOTH class/page names AND CSS
+// their full ancestor chain — and which of those to show expanded, so a match is reachable
+// without the user manually expanding anything (except inside pages over
+// MAX_EXPANDED_PAGE_SIZE). `openPages` are pages matched by name, which show all their leaves. A bare query (e.g. `letter-spacing`) matches BOTH class/page names AND CSS
 // property names, so searching a property (like `letter-spacing`) surfaces the classes that set
 // it (`tracking-*`) even though the property name never appears in their labels. `prop:<name>`
 // restricts the search to property names only, for when a property name happens to collide with
@@ -371,14 +396,17 @@ function filterTree(nodesById, propertyIndex, query) {
 
   const propMatch = trimmed.match(/^prop:\s*(.+)$/i)
   let matched
+  let openPages = new Set()
 
   if (propMatch) {
     const propQuery = normalizeSeparators(propMatch[1])
     matched = matchByProperty(nodesById, propertyIndex, propQuery)
   } else {
-    const q = trimmed.toLowerCase()
+    const byName = matchByName(nodesById, trimmed.toLowerCase())
+    openPages = byName.pages
     matched = new Set([
-      ...matchByName(nodesById, q),
+      ...byName.leaves,
+      ...byName.pages,
       ...matchByProperty(nodesById, propertyIndex, normalizeSeparators(trimmed)),
     ])
   }
@@ -394,7 +422,20 @@ function filterTree(nodesById, propertyIndex, query) {
   }
   for (const id of matched) addWithAncestors(id)
 
-  return { visible, matched }
+  const expanded = new Set()
+  for (const id of visible) {
+    const node = nodesById.get(id)
+    if (!node || !node.children) continue
+    if (node.kind === 'page') {
+      const shown = openPages.has(id)
+        ? node.children.length
+        : node.children.filter((child) => visible.has(child.identifier)).length
+      if (shown > MAX_EXPANDED_PAGE_SIZE) continue
+    }
+    expanded.add(id)
+  }
+
+  return { visible, matched, openPages, expanded }
 }
 
 exports.buildSidebarTree = buildSidebarTree

@@ -509,3 +509,13 @@ exports.PREFIX_DOC_SLUG_OVERRIDES = {
   'translate::translate-y': 'translate',
   'translate::translate-z': 'translate',
 }
+
+// `static`-kind item label -> slug, for multi-property classes whose first documented property
+// isn't the page Tailwind documents them on (sidebar-data.js#resolveDocSlug otherwise files a
+// static item under its CSS's first property with a docs page).
+exports.STATIC_DOC_SLUG_OVERRIDES = {
+  'sr-only': 'display',
+  'not-sr-only': 'display',
+  'truncate': 'text-overflow',
+  'break-normal': 'word-break',
+}

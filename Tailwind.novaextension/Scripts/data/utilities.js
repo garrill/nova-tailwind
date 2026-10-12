@@ -199,9 +199,7 @@ exports.UTILITY_FAMILIES = [
       { label: 'flex-initial', css: 'flex: 0 1 auto;' },
       { label: 'flex-none', css: 'flex: none;' },
       { label: 'grow', css: 'flex-grow: 1;' },
-      { label: 'grow-0', css: 'flex-grow: 0;' },
       { label: 'shrink', css: 'flex-shrink: 1;' },
-      { label: 'shrink-0', css: 'flex-shrink: 0;' },
       { label: 'basis-auto', css: 'flex-basis: auto;' },
       { label: 'basis-full', css: 'flex-basis: 100%;' },
 
